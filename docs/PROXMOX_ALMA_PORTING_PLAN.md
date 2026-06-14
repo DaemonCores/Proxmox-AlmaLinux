@@ -11,7 +11,7 @@
 **Key enablers**:
 - `proxmox-nixos` (1.3k stars) — complete package graph and build orchestration reference
 - `astralemu-packages` — reusable CI/CD plumbing (30–40% of infrastructure scripts)
-- AlmaLinux EL kernel — avoids the entire `pve-kernel` porting effort
+- AlmaLinux EL10 kernel — avoids the entire `pve-kernel` porting effort
 
 ## 2. Background & Motivation
 
@@ -205,7 +205,7 @@ Layer 7 — PVE manager (depends on all above)
 
 **Docker base image**: `almalinux:latest` + build tools
 ```dockerfile
-FROM almalinux:9
+FROM almalinux:10
 RUN dnf install -y \
     @development-tools \
     rpm-build \
@@ -237,7 +237,7 @@ Each job runs in a Docker container based on the image above. Artifacts (built R
 
 ### 4.3 Kernel & Storage
 
-**Kernel**: stock AlmaLinux `kernel` (currently 5.14-based for EL9) or `kernel-ml` from ELRepo (6.x-based). The choice depends on ZFS DKMS compatibility and KVM feature requirements. EL9's 5.14 kernel already includes:
+**Kernel**: stock AlmaLinux `kernel` (6.12-based for EL10) or `kernel-ml` from ELRepo for newer versions. The EL10 kernel provides all required virtualisation features natively. EL10's 6.12 kernel already includes:
 - KVM (full virtualisation)
 - virtio, virtio-scsi, virtio-net, virtio-balloon, virtio-rng
 - vhost-net, vhost-scsi
@@ -247,9 +247,11 @@ Each job runs in a Docker container based on the image above. Artifacts (built R
 
 **ZFS**: `zfs-dkms` from the OpenZFS repository (https://openzfs.github.io/openzfs-docs/). Install via:
 ```bash
-dnf install -y https://zfsonlinux.org/epel/zfs-release-el-9.noarch.rpm
+dnf install -y https://zfsonlinux.org/epel/zfs-release-3-0.el10.noarch.rpm
 dnf install -y zfs-dkms zfs
 ```
+
+> **⚠️ Known issue (June 2026)**: OpenZFS 2.2.9 on EL10 has a CPU ISA level mismatch on x86-64-v2 systems (OpenZFS issue #18665). The DKMS module loads fine, but `zpool import` fails with "CPU ISA level is lower than required." Workaround: rebuild the userland RPMs locally from source. This is expected to be resolved in a future OpenZFS release.
 
 **Storage backend**: ZFS datasets (local). Ceph can be added later as an optional dependency — `proxmox-nixos` already makes it optional via `enableLinstor`.
 
@@ -265,7 +267,7 @@ dnf install -y zfs-dkms zfs
 | Copy reusable scripts | `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` from `astralemu-packages/scripts/` |
 | Create AlmaLinux dep-map | Extend `dep-map.conf` with Proxmox-specific Debian→RPM mappings (Perl modules, corosync, libqb, fuse3, etc.) |
 | Create `packages.yml` | Based on the dependency graph in §4.1, list all packages with `id`, `version_source`, `build_time`, `depends_on` |
-| Build Docker image | `almalinux:9` + dev tools + Perl 5.40 + meson + RPM build tools |
+| Build Docker image | `almalinux:10` + dev tools + Perl 5.40 + meson + RPM build tools |
 | CI skeleton | GitHub Actions workflow with build, test, and publish jobs |
 | Build first Perl module | Pick `uuid` or `digestsha` (leaf, no deps) — validate end-to-end: fetch from CPAN → extract to `.pkg.tar` → convert to `.rpm` → install on AlmaLinux VM |
 
@@ -368,7 +370,7 @@ dnf install -y zfs-dkms zfs
 | ZFS DKMS break on kernel update | Medium | High | Pin kernel version in production. Test DKMS rebuild in CI before kernel updates. Use `akmods` alternative if DKMS proves fragile. |
 | `pve-manager` Debian-isms (hardcoded paths) | High | High | Catalog all hardcoded paths from `proxmox-nixos` `postFixup` sed commands. The Nix expressions are the definitive reference for what needs patching. Create a comprehensive path-mapping table (Appendix B). |
 | Maintenance burden per Proxmox release | High | High | Automate patch rebasing in CI. Pin versions in `packages.yml`. Test new PVE releases in CI before updating pins. |
-| `pve-cluster` fuse/corosync integration | Medium | Medium | Corosync and fuse3 are available in EL9 repos. Test `pmxcfs` startup early in Phase 3. |
+| `pve-cluster` fuse/corosync integration | Medium | Medium | Corosync and fuse3 are available in EL10 repos. Test `pmxcfs` startup early in Phase 3. |
 | `pve-manager` web UI asset compilation | Low | Medium | PVE uses ExtJS (already packaged as `extjs` in Nix) and biome for JS minification. Both available via npm. |
 | SELinux conflicts | Medium | Medium | Set PVE services to permissive domain or create custom SELinux policy. AlmaLinux supports SELinux permissive mode for testing. |
 | PVE API2::APT removal | Low | Low | `proxmox-nixos` already removes `API2::APT` references (Debian-specific package management). The sed command exists. |
@@ -392,7 +394,7 @@ dnf install -y zfs-dkms zfs
 | Resource | Purpose |
 |---|---|
 | GitHub Actions runners (or self-hosted) | CI pipeline — QEMU builds take 40+ minutes, need substantial runners |
-| AlmaLinux 9 test VM(s) | Integration testing — minimum 8 GB RAM, 50 GB disk, nested virtualisation enabled |
+| AlmaLinux 10 test VM(s) | Integration testing — minimum 8 GB RAM, 50 GB disk, nested virtualisation enabled |
 | GPG key for RPM signing | Repository authenticity — generate a dedicated signing key |
 | ZFS test disks | At least 2 spare block devices (or loop devices) for ZFS pool testing |
 
@@ -416,7 +418,7 @@ dnf install -y zfs-dkms zfs
 3. **Copy reusable scripts** — `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` from `astralemu-packages/scripts/`.
 4. **Extend `dep-map.conf`** — Add Proxmox-specific Debian→RPM mappings for Perl modules, corosync, libqb, fuse3, etc.
 5. **Write first `packages.yml`** — Start with Layer 0 Perl leaf packages (no dependencies, easy to validate).
-6. **Build Docker image** — `almalinux:9` + dev tools + Perl 5.40 + meson + RPM build tools.
+6. **Build Docker image** — `almalinux:10` + dev tools + Perl 5.40 + meson + RPM build tools.
 7. **Run first CI build** — Pick `uuid` or `digestsha` (simplest Perl module), validate end-to-end: fetch → extract → convert → RPM → install → test.
 
 ## 10. References
@@ -604,7 +606,7 @@ Known hardcoded paths from `proxmox-nixos` `postFixup` sed commands, to be adapt
 ### General pattern
 
 Most path substitutions fall into these categories:
-1. **sbin → bin merge**: On EL9, `/sbin` and `/usr/sbin` are symlinks to `/usr/bin`. Path references like `/sbin/zfs` should become `/usr/sbin/zfs` (or just rely on PATH). **Note**: on AlmaLinux 9, `/sbin` and `/usr/sbin` are symlinks pointing to `/usr/bin/`. This means references to `/usr/sbin/xxx` work via symlink resolution, but the actual binary resides in `/usr/bin/`. When patching PVE source code, prefer `/usr/bin/` as the canonical path, or rely on `$PATH` lookup rather than hardcoding `/usr/sbin/`.
+1. **sbin → bin merge**: On EL10, `/sbin` and `/usr/sbin` are symlinks to `/usr/bin`, continuing the merge started in EL9. Path references like `/sbin/zfs` should become `/usr/sbin/zfs` (or just rely on PATH). **Note**: on AlmaLinux 10, `/sbin` and `/usr/sbin` are symlinks pointing to `/usr/bin/`, as they were on AlmaLinux 9. This means references to `/usr/sbin/xxx` work via symlink resolution, but the actual binary resides in `/usr/bin/`. When patching PVE source code, prefer `/usr/bin/` as the canonical path, or rely on `$PATH` lookup rather than hardcoding `/usr/sbin/`.
 2. **Package install paths**: `/usr/share/perl5` may need adjustment depending on how RPM Perl modules are installed.
 3. **Debian-specific removal**: `API2::APT` and APT-related code must be stripped.
 4. **Wrapper PATH injection**: Instead of sed-replacing every binary path, the `astralemu-packages` approach of using `--prefix PATH` in RPM scriptlets (or `wrapProgram` equivalent) is cleaner.
