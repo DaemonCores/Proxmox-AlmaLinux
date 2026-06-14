@@ -1,10 +1,10 @@
 #!/bin/bash
-# resolve-deps.sh — Recursive dependency resolution across distros
+# resolve-deps.sh — Recursive dependency resolution for RPM-based distros
 #
 # Checks if dependencies exist in the target distro with compatible versions
 # (same major.minor.patch — bugfix/revision differences are ignored).
 # Missing or incompatible deps are fetched from source, rebuilt with a prefixed
-# package name (e.g. ubuntu-lts-libfoo) and Provides: original_name.
+# package name (e.g. almalinux-10-libfoo) and Provides: original_name.
 # The prefix defaults to SOURCE_DISTRO but can be overridden with --prefix.
 # Supports --cache-dir to reuse previously fetched source packages across runs.
 #
@@ -101,33 +101,16 @@ declare -a SYSTEM_DEPS_GLOB=()
 if [[ -n "$IGNORE_FILE" && -f "$IGNORE_FILE" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*# || -z "${line// /}" ]] && continue
-    # Format: deb_name [rpm:rpm_name] [pac:pac_name]
-    # Extract the name for our target format
+    # Format: rpm_name or deb_name rpm:rpm_name — extract RPM name
     pkg=""
-    case "$TARGET_FORMAT" in
-      deb)
-        pkg="${line%% *}"
-        ;;
-      rpm)
-        if [[ "$line" =~ rpm:([^[:space:]]+) ]]; then
-          pkg="${BASH_REMATCH[1]}"
-        else
-          pkg="${line%% *}"
-        fi
-        ;;
-      pacman)
-        if [[ "$line" =~ pac:([^[:space:]]+) ]]; then
-          pkg="${BASH_REMATCH[1]}"
-        else
-          pkg="${line%% *}"
-        fi
-        ;;
-    esac
+    if [[ "$line" =~ rpm:([^[:space:]]+) ]]; then
+      pkg="${BASH_REMATCH[1]}"
+    else
+      pkg="${line%% *}"
+    fi
     if [[ -n "$pkg" ]]; then
       # Names containing a glob '*' (or '?', '[') go into the glob fallback
       # array — exact lookup is the fast path, glob scan only runs on misses.
-      # Lets entries like `ubuntu-wallpapers-*` match every codename rollover
-      # so we don't have to bump the file at every Ubuntu LTS.
       if [[ "$pkg" == *[*\?\[]* ]]; then
         SYSTEM_DEPS_GLOB+=("$pkg")
       else
@@ -155,21 +138,14 @@ is_system_dep() {
 
 get_docker_image() {
   case "$1" in
-    ubuntu-lts)    echo "ubuntu:latest" ;;
-    debian-stable) echo "debian:latest" ;;
     fedora-latest) echo "fedora:latest" ;;
-    arch)          echo "archlinux:latest" ;;
-    *)             echo "ubuntu:latest" ;;
+    almalinux-10)  echo "almalinux:10" ;;
+    *)             echo "fedora:latest" ;;
   esac
 }
 
 get_source_format() {
-  case "${SOURCE_DISTRO:-ubuntu-lts}" in
-    ubuntu-lts|debian-stable) echo "deb" ;;
-    fedora-latest)            echo "rpm" ;;
-    arch)                     echo "pacman" ;;
-    *)                        echo "deb" ;;
-  esac
+  echo "rpm"
 }
 
 get_platform() {
@@ -224,12 +200,7 @@ map_dep_name() {
 
   local mapped=""
   case "${from_format}:${to_format}" in
-    deb:rpm)    mapped=$(grep "^${dep} " "$DEP_MAP" 2>/dev/null | head -1 | grep -oP 'rpm:\K[^,\s]+' | tr -d ' ') || true ;;
-    deb:pacman) mapped=$(grep "^${dep} " "$DEP_MAP" 2>/dev/null | head -1 | grep -oP 'pac:\K[^,\s]+' | tr -d ' ') || true ;;
-    rpm:deb)    mapped=$(grep " rpm:${dep}" "$DEP_MAP" 2>/dev/null | head -1 | awk '{print $1}') || true ;;
-    rpm:pacman) mapped=$(grep " rpm:${dep}" "$DEP_MAP" 2>/dev/null | head -1 | grep -oP 'pac:\K[^,\s]+') || true ;;
-    pacman:deb) mapped=$(grep " pac:${dep}" "$DEP_MAP" 2>/dev/null | head -1 | awk '{print $1}') || true ;;
-    pacman:rpm) mapped=$(grep " pac:${dep}" "$DEP_MAP" 2>/dev/null | head -1 | grep -oP 'rpm:\K[^,\s]+') || true ;;
+    rpm:rpm) echo "$dep"; return ;;
   esac
 
   echo "${mapped:-$dep}"
@@ -247,27 +218,11 @@ dep_version_in_repo() {
   [[ -z "$EXISTING_REPO" || ! -f "$EXISTING_REPO" ]] && return 1
 
   local match existing_ver
-  case "$TARGET_FORMAT" in
-    deb)
-      # Filename: prefixed_VERSION_ARCH.deb
-      match=$(grep -m1 "/${prefixed}_" "$EXISTING_REPO" 2>/dev/null) || return 1
-      existing_ver=$(basename "$match" | sed "s/^${prefixed}_//; s/_[^_]*\.deb$//")
-      ;;
-    rpm)
-      # Filename: prefixed-VERSION-RELEASE.ARCH.rpm
-      match=$(grep -m1 "/${prefixed}-[0-9]" "$EXISTING_REPO" 2>/dev/null) || return 1
-      local stem
-      stem=$(basename "$match" | sed 's/\.[^.]*\.rpm$//')
-      existing_ver=$(echo "$stem" | sed "s/^${prefixed}-//" | rev | cut -d- -f2- | rev)
-      ;;
-    pacman)
-      # Filename: prefixed-VERSION-PKGREL-ARCH.pkg.tar.zst
-      match=$(grep -m1 "/${prefixed}-[0-9]" "$EXISTING_REPO" 2>/dev/null) || return 1
-      local stem
-      stem=$(basename "$match" | sed 's/\.pkg\.tar\.zst$//')
-      existing_ver=$(echo "$stem" | rev | cut -d- -f3- | rev | sed "s/^${prefixed}-//")
-      ;;
-  esac
+  # Filename: prefixed-VERSION-RELEASE.ARCH.rpm
+  match=$(grep -m1 "/${prefixed}-[0-9]" "$EXISTING_REPO" 2>/dev/null) || return 1
+  local stem
+  stem=$(basename "$match" | sed 's/\.[^.]*\.rpm$//')
+  existing_ver=$(echo "$stem" | sed "s/^${prefixed}-//" | rev | cut -d- -f2- | rev)
 
   [[ -z "$existing_ver" ]] && return 1
   versions_compatible "$new_version" "$existing_ver"
@@ -279,40 +234,16 @@ dep_version_in_repo() {
 # ========================================================================
 
 batch_get_versions() {
-  local dep_list="$1" image="$2" format="$3"
+  local dep_list="$1" image="$2"
   [[ -z "$dep_list" ]] && return
 
-  case "$format" in
-    deb)
-      docker run --rm --platform "$PLATFORM" "$image" bash -c "
-        apt-get update -qq >/dev/null 2>&1
-        FOUND=\$(apt-cache show $dep_list 2>/dev/null | awk '/^Package:/{pkg=\$2} /^Version:/{if(!seen[pkg]){print pkg\"=\"\$2; seen[pkg]=1}}')
-        echo \"\$FOUND\"
-        for pkg in $dep_list; do
-          echo \"\$FOUND\" | grep -q \"^\${pkg}=\" || echo \"\${pkg}=MISSING\"
-        done
-      " 2>/dev/null || true
-      ;;
-    rpm)
-      docker run --rm --platform "$PLATFORM" "$image" bash -c "
-        FOUND=\$(dnf repoquery --qf '%{name}=%{version}-%{release}' $dep_list 2>/dev/null)
-        echo \"\$FOUND\"
-        for pkg in $dep_list; do
-          echo \"\$FOUND\" | grep -q \"^\${pkg}=\" || echo \"\${pkg}=MISSING\"
-        done
-      " 2>/dev/null || true
-      ;;
-    pacman)
-      docker run --rm --platform "$PLATFORM" "$image" bash -c "
-        pacman -Sy --noconfirm >/dev/null 2>&1
-        FOUND=\$(pacman -Si $dep_list 2>/dev/null | awk '/^Name/{name=\$3} /^Version/{print name\"=\"\$3}')
-        echo \"\$FOUND\"
-        for pkg in $dep_list; do
-          echo \"\$FOUND\" | grep -q \"^\${pkg}=\" || echo \"\${pkg}=MISSING\"
-        done
-      " 2>/dev/null || true
-      ;;
-  esac
+  docker run --rm --platform "$PLATFORM" "$image" bash -c "
+    FOUND=\$(dnf repoquery --qf '%{name}=%{version}-%{release}' $dep_list 2>/dev/null)
+    echo \"\$FOUND\"
+    for pkg in $dep_list; do
+      echo \"\$FOUND\" | grep -q \"^\${pkg}=\" || echo \"\${pkg}=MISSING\"
+    done
+  " 2>/dev/null || true
 }
 
 # ========================================================================
@@ -322,26 +253,10 @@ batch_get_versions() {
 collect_deps_from_pkg() {
   local pkg_file="$1"
   case "$pkg_file" in
-    *.deb)
-      dpkg-deb -f "$pkg_file" Depends 2>/dev/null | tr ',' '\n' | \
-        sed 's/([^)]*)//g; s/|.*//; s/:.*$//; s/^[[:space:]]*//; s/[[:space:]]*$//' | \
-        grep -E '^[a-zA-Z]' || true
-      ;;
     *.rpm)
       rpm -qp --requires "$pkg_file" 2>/dev/null | grep -v '^rpmlib(' | grep -v '^/' | \
         sed 's/[[:space:]]*[><=].*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | \
         grep -E '^[a-zA-Z]' | sort -u || true
-      ;;
-    *.pkg.tar.zst|*.pkg.tar.xz|*.pkg.tar.gz)
-      local tmpext
-      tmpext=$(mktemp -d)
-      tar xf "$pkg_file" -C "$tmpext" .PKGINFO 2>/dev/null || true
-      if [[ -f "$tmpext/.PKGINFO" ]]; then
-        grep '^depend = ' "$tmpext/.PKGINFO" | sed 's/^depend = //; s/[><=].*//' | \
-          sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | \
-          grep -E '^[a-zA-Z]' || true
-      fi
-      rm -rf "$tmpext"
       ;;
   esac
 }
@@ -351,48 +266,18 @@ collect_deps_from_pkg() {
 # ========================================================================
 
 batch_fetch() {
-  local dep_list="$1" fetch_dir="$2" source_format="$3"
+  local dep_list="$1" fetch_dir="$2"
 
   # Single Docker call, parallel per-package downloads (one failure doesn't block others)
   local MAX_DL=16
-  case "$source_format" in
-    deb)
-      docker run --rm --platform "$PLATFORM" -v "$fetch_dir:/out" "$SOURCE_IMAGE" \
-        bash -c "
-          apt-get update -qq >/dev/null 2>&1
-          cd /tmp
-          for pkg in $dep_list; do
-            (apt-get download \"\$pkg\" 2>/dev/null || true) &
-            while [ \$(jobs -rp | wc -l) -ge $MAX_DL ]; do sleep 0.1; done
-          done
-          wait
-          mv /tmp/*.deb /out/ 2>/dev/null || true
-        " 2>/dev/null || true
-      ;;
-    rpm)
-      docker run --rm --platform "$PLATFORM" -v "$fetch_dir:/out" "$SOURCE_IMAGE" \
-        bash -c "
-          for pkg in $dep_list; do
-            (dnf download --destdir=/out \"\$pkg\" 2>/dev/null || true) &
-            while [ \$(jobs -rp | wc -l) -ge $MAX_DL ]; do sleep 0.1; done
-          done
-          wait
-        " 2>/dev/null || true
-      ;;
-    pacman)
-      # pacman uses a db lock — no parallel, but try batch first for speed
-      docker run --rm --platform "$PLATFORM" -v "$fetch_dir:/out" "$SOURCE_IMAGE" \
-        bash -c "
-          pacman -Sy --noconfirm >/dev/null 2>&1
-          pacman -Sw --noconfirm $dep_list 2>/dev/null || {
-            for pkg in $dep_list; do
-              pacman -Sw --noconfirm \"\$pkg\" 2>/dev/null || true
-            done
-          }
-          cp /var/cache/pacman/pkg/*.pkg.tar.* /out/ 2>/dev/null || true
-        " 2>/dev/null || true
-      ;;
-  esac
+  docker run --rm --platform "$PLATFORM" -v "$fetch_dir:/out" "$SOURCE_IMAGE" \
+    bash -c "
+      for pkg in $dep_list; do
+        (dnf download --destdir=/out \"\$pkg\" 2>/dev/null || true) &
+        while [ \$(jobs -rp | wc -l) -ge $MAX_DL ]; do sleep 0.1; done
+      done
+      wait
+    " 2>/dev/null || true
 }
 
 # ========================================================================
@@ -433,17 +318,8 @@ prefix_and_rebuild() {
   echo "$prefixed" > "$int_dir/meta/name"
   echo "$orig_name" >> "$int_dir/meta/provides"
 
-  case "$TARGET_FORMAT" in
-    deb)
-      "$SCRIPT_DIR/pkg-build-deb.sh" "$int_dir" "$OUTPUT_DIR/" --dep-map "$DEP_MAP" >&2 || \
-        log_fail "rebuild $prefixed (deb)" ;;
-    rpm)
-      "$SCRIPT_DIR/pkg-build-rpm.sh" "$int_dir" "$OUTPUT_DIR/" --dep-map "$DEP_MAP" >&2 || \
-        log_fail "rebuild $prefixed (rpm)" ;;
-    pacman)
-      "$SCRIPT_DIR/pkg-build-pacman.sh" "$int_dir" "$OUTPUT_DIR/" --dep-map "$DEP_MAP" >&2 || \
-        log_fail "rebuild $prefixed (pacman)" ;;
-  esac
+  "$SCRIPT_DIR/pkg-build-rpm.sh" "$int_dir" "$OUTPUT_DIR/" --dep-map "$DEP_MAP" >&2 || \
+    log_fail "rebuild $prefixed (rpm)"
 
   echo "  -> Prefixed: $prefixed (provides $orig_name)" >&2
 
@@ -460,7 +336,7 @@ prefix_and_rebuild() {
 
 PLATFORM=$(get_platform)
 TARGET_IMAGE=$(get_docker_image "$TARGET_DISTRO")
-SOURCE_IMAGE=$(get_docker_image "${SOURCE_DISTRO:-ubuntu-lts}")
+SOURCE_IMAGE=$(get_docker_image "${SOURCE_DISTRO:-fedora-latest}")
 SOURCE_FORMAT=$(get_source_format)
 
 declare -A CHECKED_DEPS
@@ -476,7 +352,7 @@ initial_deps=""
 for pkg_file in "$SOURCE_PKGS"/*; do
   [[ -f "$pkg_file" ]] || continue
   case "$pkg_file" in
-    *.deb|*.rpm|*.pkg.tar.zst|*.pkg.tar.xz|*.pkg.tar.gz) ;;
+    *.rpm) ;;
     *) continue ;;
   esac
   echo "Scanning: $(basename "$pkg_file")"
@@ -525,7 +401,7 @@ while [[ -n "$(echo "$to_check" | xargs)" ]]; do
     name="${line%%=*}"
     ver="${line#*=}"
     TGT_VERS["$name"]="$ver"
-  done <<< "$(batch_get_versions "$new_deps" "$TARGET_IMAGE" "$TARGET_FORMAT")"
+  done <<< "$(batch_get_versions "$new_deps" "$TARGET_IMAGE")"
 
   # Separate missing from existing
   existing_deps=""
@@ -561,7 +437,7 @@ while [[ -n "$(echo "$to_check" | xargs)" ]]; do
       name="${line%%=*}"
       ver="${line#*=}"
       SRC_VERS["$name"]="$ver"
-    done <<< "$(batch_get_versions "$source_query" "$SOURCE_IMAGE" "$SOURCE_FORMAT")"
+    done <<< "$(batch_get_versions "$source_query" "$SOURCE_IMAGE")"
   fi
 
   # Compare versions for existing deps
@@ -620,7 +496,7 @@ while [[ -n "$(echo "$to_check" | xargs)" ]]; do
     cached_count=0
     FETCH_DIR=$(mktemp -d)
     for src_dep in $src_fetch_list; do
-      cached_file=$(ls "$CACHE_DIR"/${src_dep}_*.deb "$CACHE_DIR"/${src_dep}-[0-9]*.rpm "$CACHE_DIR"/${src_dep}-[0-9]*.pkg.tar.* 2>/dev/null | head -1) || true
+      cached_file=$(ls "$CACHE_DIR"/${src_dep}-[0-9]*.rpm 2>/dev/null | head -1) || true
       if [[ -n "$cached_file" && -f "$cached_file" ]]; then
         cp "$cached_file" "$FETCH_DIR/"
         cached_count=$((cached_count + 1))
@@ -637,7 +513,7 @@ while [[ -n "$(echo "$to_check" | xargs)" ]]; do
   # Batch fetch: one Docker call for remaining deps
   if [[ -n "$src_fetch_list" ]]; then
     echo "  Batch fetching $(echo "$src_fetch_list" | wc -w) packages from $SOURCE_DISTRO..."
-    batch_fetch "$src_fetch_list" "$FETCH_DIR" "$SOURCE_FORMAT"
+    batch_fetch "$src_fetch_list" "$FETCH_DIR"
   fi
 
   # Save fetched packages to cache

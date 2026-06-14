@@ -2,7 +2,7 @@
 # pkg-build-rpm.sh — Build an .rpm from the intermediate format
 # Usage: ./pkg-build-rpm.sh <intermediate-dir> <output-dir> [--dep-map <dep-map.conf>]
 #
-# Supports any source format: deb, rpm, pacman → rpm
+# Supports RPM source format → RPM output.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,7 +37,6 @@ PKG_VERSION=$(cat "$INTDIR/meta/version")
 PKG_ARCH=$(cat "$INTDIR/meta/arch")
 PKG_DESC=$(cat "$INTDIR/meta/description")
 PKG_MAINTAINER=$(cat "$INTDIR/meta/maintainer")
-SOURCE_FORMAT=$(cat "$INTDIR/meta/source_format")
 
 # Map arch
 case "$PKG_ARCH" in
@@ -57,40 +56,6 @@ esac
 # Clean version for RPM (no colons, strip +suffix, translate hyphens)
 RPM_VERSION=$(echo "$PKG_VERSION" | sed 's/+[^-]*//' | tr ':~' '..' | sed 's/-/./g')
 
-# Map dependency name to RPM name
-map_dep_to_rpm() {
-  local dep="$1"
-
-  if [[ "$SOURCE_FORMAT" == "rpm" ]]; then
-    echo "$dep"
-    return
-  fi
-
-  if [[ -n "$DEP_MAP" && -f "$DEP_MAP" ]]; then
-    local mapped=""
-    if [[ "$SOURCE_FORMAT" == "deb" ]]; then
-      mapped=$(grep "^${dep} " "$DEP_MAP" | head -1 | grep -oP 'rpm:\K[^,\s]+' || true)
-    elif [[ "$SOURCE_FORMAT" == "pacman" ]]; then
-      mapped=$(grep " pac:${dep}" "$DEP_MAP" | head -1 | grep -oP 'rpm:\K[^,\s]+' || true)
-    fi
-    if [[ -n "$mapped" ]]; then
-      echo "$mapped"
-      return
-    fi
-  fi
-
-  echo "$dep"
-}
-
-# ========================================================================
-# Relocate library paths (deb multiarch, lib64, /lib merge)
-# ========================================================================
-if [[ "$SOURCE_FORMAT" != "rpm" ]]; then
-  relocate_lib_paths "$INTDIR/root" "$TARGET_LIBDIR"
-fi
-
-# ========================================================================
-
 # Setup rpmbuild tree
 RPMBUILD=$(mktemp -d)
 trap 'rm -rf "$RPMBUILD"' EXIT
@@ -102,8 +67,7 @@ REQUIRES=""
 if [[ -s "$INTDIR/meta/depends" ]]; then
   while IFS= read -r dep; do
     [[ -z "$dep" ]] && continue
-    rpm_dep=$(map_dep_to_rpm "$dep")
-    REQUIRES="${REQUIRES}Requires: ${rpm_dep}
+    REQUIRES="${REQUIRES}Requires: ${dep}
 "
   done < "$INTDIR/meta/depends"
 fi
@@ -129,81 +93,28 @@ for field in provides conflicts replaces; do
 done
 
 # ========================================================================
-# Build unified scriptlet bodies (single %pre/%post/%preun/%postun each)
-# Handles all source formats: deb, rpm (passthrough), pacman (with $1 guards)
+# Build scriptlet bodies (RPM source: passthrough)
 # ========================================================================
 PRE_BODY=""
 POST_BODY=""
 PREUN_BODY=""
 POSTUN_BODY=""
 
-# --- Pacman source: separate install vs upgrade scripts with $1 guards ---
-if [[ "$SOURCE_FORMAT" == "pacman" ]]; then
-  # preinst (pre_install) → %pre $1=1
-  if [[ -f "$INTDIR/meta/scripts/preinst" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/preinst" "pacman" "rpm")
-    if [[ -n "$TRANSLATED" ]]; then
-      HAS_UPGRADE=false
-      [[ -f "$INTDIR/meta/scripts/pre_upgrade" ]] && HAS_UPGRADE=true
-      if [[ "$HAS_UPGRADE" == "true" ]]; then
-        PRE_BODY+='if [ $1 -eq 1 ]; then'$'\n'"$TRANSLATED"$'\n''fi'$'\n'
-      else
-        PRE_BODY+="$TRANSLATED"$'\n'
-      fi
-    fi
-  fi
-  # pre_upgrade → %pre $1≥2
-  if [[ -f "$INTDIR/meta/scripts/pre_upgrade" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/pre_upgrade" "pacman" "rpm")
-    [[ -n "$TRANSLATED" ]] && PRE_BODY+='if [ $1 -ge 2 ]; then'$'\n'"$TRANSLATED"$'\n''fi'$'\n'
-  fi
-  # postinst (post_install) → %post $1=1
-  if [[ -f "$INTDIR/meta/scripts/postinst" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/postinst" "pacman" "rpm")
-    if [[ -n "$TRANSLATED" ]]; then
-      HAS_UPGRADE=false
-      [[ -f "$INTDIR/meta/scripts/post_upgrade" ]] && HAS_UPGRADE=true
-      if [[ "$HAS_UPGRADE" == "true" ]]; then
-        POST_BODY+='if [ $1 -eq 1 ]; then'$'\n'"$TRANSLATED"$'\n''fi'$'\n'
-      else
-        POST_BODY+="$TRANSLATED"$'\n'
-      fi
-    fi
-  fi
-  # post_upgrade → %post $1≥2
-  if [[ -f "$INTDIR/meta/scripts/post_upgrade" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/post_upgrade" "pacman" "rpm")
-    [[ -n "$TRANSLATED" ]] && POST_BODY+='if [ $1 -ge 2 ]; then'$'\n'"$TRANSLATED"$'\n''fi'$'\n'
-  fi
-  # prerm (pre_remove) → %preun $1=0
-  if [[ -f "$INTDIR/meta/scripts/prerm" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/prerm" "pacman" "rpm")
-    [[ -n "$TRANSLATED" ]] && PREUN_BODY+='if [ $1 -eq 0 ]; then'$'\n'"$TRANSLATED"$'\n''fi'$'\n'
-  fi
-  # postrm (post_remove) → %postun $1=0
-  if [[ -f "$INTDIR/meta/scripts/postrm" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/postrm" "pacman" "rpm")
-    [[ -n "$TRANSLATED" ]] && POSTUN_BODY+='if [ $1 -eq 0 ]; then'$'\n'"$TRANSLATED"$'\n''fi'$'\n'
-  fi
-
-# --- Deb/RPM source: translate with unified translate_script ---
-else
-  if [[ -f "$INTDIR/meta/scripts/preinst" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/preinst" "$SOURCE_FORMAT" "rpm")
-    [[ -n "$TRANSLATED" ]] && PRE_BODY+="$TRANSLATED"$'\n'
-  fi
-  if [[ -f "$INTDIR/meta/scripts/postinst" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/postinst" "$SOURCE_FORMAT" "rpm")
-    [[ -n "$TRANSLATED" ]] && POST_BODY+="$TRANSLATED"$'\n'
-  fi
-  if [[ -f "$INTDIR/meta/scripts/prerm" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/prerm" "$SOURCE_FORMAT" "rpm")
-    [[ -n "$TRANSLATED" ]] && PREUN_BODY+="$TRANSLATED"$'\n'
-  fi
-  if [[ -f "$INTDIR/meta/scripts/postrm" ]]; then
-    TRANSLATED=$(translate_script "$INTDIR/meta/scripts/postrm" "$SOURCE_FORMAT" "rpm")
-    [[ -n "$TRANSLATED" ]] && POSTUN_BODY+="$TRANSLATED"$'\n'
-  fi
+if [[ -f "$INTDIR/meta/scripts/preinst" ]]; then
+  TRANSLATED=$(translate_script "$INTDIR/meta/scripts/preinst" "rpm" "rpm")
+  [[ -n "$TRANSLATED" ]] && PRE_BODY+="$TRANSLATED"$'\n'
+fi
+if [[ -f "$INTDIR/meta/scripts/postinst" ]]; then
+  TRANSLATED=$(translate_script "$INTDIR/meta/scripts/postinst" "rpm" "rpm")
+  [[ -n "$TRANSLATED" ]] && POST_BODY+="$TRANSLATED"$'\n'
+fi
+if [[ -f "$INTDIR/meta/scripts/prerm" ]]; then
+  TRANSLATED=$(translate_script "$INTDIR/meta/scripts/prerm" "rpm" "rpm")
+  [[ -n "$TRANSLATED" ]] && PREUN_BODY+="$TRANSLATED"$'\n'
+fi
+if [[ -f "$INTDIR/meta/scripts/postrm" ]]; then
+  TRANSLATED=$(translate_script "$INTDIR/meta/scripts/postrm" "rpm" "rpm")
+  [[ -n "$TRANSLATED" ]] && POSTUN_BODY+="$TRANSLATED"$'\n'
 fi
 
 # Detect systemd unit files and add native RPM handling

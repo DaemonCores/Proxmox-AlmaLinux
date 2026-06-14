@@ -1,0 +1,210 @@
+name: Build Chain
+
+on:
+  workflow_call:
+    inputs:
+      chain_matrix:
+        description: 'JSON array of matrix entries for this chain'
+        required: true
+        type: string
+      cache_key:
+        description: 'Base cache key for Docker images'
+        required: false
+        type: string
+        default: 'pve-build-base-v1'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.entry.target_runner }}
+    strategy:
+      matrix:
+        entry: ${{ fromJSON(inputs.chain_matrix) }}
+      fail-fast: false
+      max-parallel: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Restore cached image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/pve-build.tar
+          key: ${{ inputs.cache_key }}-${{ matrix.entry.target_arch }}
+
+      - name: Load image
+        run: docker load -i /tmp/pve-build.tar
+
+      - name: Restore ccache
+        id: cache_ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}
+          key: ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}-${{ matrix.entry.version_short }}
+          restore-keys: |
+            ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}-
+
+      - name: Restore extra cache
+        id: cache_extra
+        if: matrix.entry.extra_cache_key != ''
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ matrix.entry.extra_cache_path }}
+          key: ${{ matrix.entry.extra_cache_key }}
+
+      - name: Build
+        id: build
+        run: |
+          mkdir -p /tmp/ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}
+
+          EXTRA_MOUNT=""
+          if [[ -n "${{ matrix.entry.extra_cache_mount }}" ]]; then
+            mkdir -p "${{ matrix.entry.extra_cache_path }}"
+            EXTRA_MOUNT="-v ${{ matrix.entry.extra_cache_path }}:${{ matrix.entry.extra_cache_mount }}"
+          fi
+
+          # Capture stdout+stderr so the summary step can tail it on failure.
+          BUILD_LOG="$RUNNER_TEMP/build.log"
+          START_TS=$(date +%s)
+
+          set +e
+          docker run --rm --platform ${{ matrix.entry.target_platform }} \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -v /tmp/ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}:/ccache \
+            $EXTRA_MOUNT \
+            -e VERSION=${{ matrix.entry.version }} \
+            -e COMMIT=${{ matrix.entry.version }} \
+            -e SHORT=${{ matrix.entry.version_short }} \
+            -e CCACHE_DIR=/ccache \
+            -e TARGET_ID=${{ matrix.entry.target_id }} \
+            -e TARGET_ARCH=${{ matrix.entry.target_arch }} \
+            -e TARGET_CFLAGS="${{ matrix.entry.target_cflags }}" \
+            -e TARGET_CXXFLAGS="${{ matrix.entry.target_cxxflags }}" \
+            -e SOURCE_DISTRO=${{ matrix.entry.target_source_distro }} \
+            pve-build-image bash /workspace/${{ matrix.entry.base_dir }}/${{ matrix.entry.package_id }}/build.sh \
+            2>&1 | tee "$BUILD_LOG"
+          RC=${PIPESTATUS[0]}
+          set -e
+
+          END_TS=$(date +%s)
+          DURATION=$((END_TS - START_TS))
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+          echo "rc=$RC" >> $GITHUB_OUTPUT
+          echo "log_path=$BUILD_LOG" >> $GITHUB_OUTPUT
+
+          # Check build-status files
+          PKG_ID="${{ matrix.entry.package_id }}"
+          COMPLETED=false
+          if [[ -f "build-status" ]] && [[ "$(cat build-status)" == "completed" ]]; then
+            COMPLETED=true
+          elif [[ -f "build-status-${PKG_ID}" ]] && [[ "$(cat build-status-${PKG_ID})" == "completed" ]]; then
+            COMPLETED=true
+          elif ls *.pkg.tar 1>/dev/null 2>&1; then
+            COMPLETED=true
+          fi
+          echo "completed=$COMPLETED" >> $GITHUB_OUTPUT
+          if [[ "$COMPLETED" != "true" ]]; then
+            echo "::error::Build failed for ${{ matrix.entry.package_id }}/${{ matrix.entry.target_id }} (rc=$RC, no artifact)"
+            exit 1
+          fi
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}
+          key: ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}-${{ matrix.entry.version_short }}
+
+      - name: Save extra cache
+        if: always() && matrix.entry.extra_cache_save == 'true' && matrix.entry.extra_cache_key != ''
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ matrix.entry.extra_cache_path }}
+          key: ${{ matrix.entry.extra_cache_key }}
+
+      - name: Upload pkg artifact
+        if: steps.build.outputs.completed == 'true' && matrix.entry.artifact_type == 'pkg' && matrix.entry.noarch_single_build != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}
+          path: "*.pkg.tar"
+          retention-days: 1
+          overwrite: true
+          # Some entries may not emit a .pkg.tar (e.g. helper steps that prep a cache)
+          if-no-files-found: ignore
+
+      - name: Upload pkg artifact (noarch, single build for all devices)
+        if: steps.build.outputs.completed == 'true' && matrix.entry.artifact_type == 'pkg' && matrix.entry.noarch_single_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          # noarch_single_build entries emit one arch=all .pkg.tar from a single build job.
+          # The 'pkg-noarch-' prefix lets update-repos.yml pick this artifact
+          # up for all repos (any arch), not just the build_target the job ran on.
+          name: pkg-noarch-${{ matrix.entry.package_id }}
+          path: "*.pkg.tar"
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: ignore
+
+      - name: Report build outcome
+        if: always()
+        run: |
+          source scripts/report.sh
+          report_section "Build · ${{ matrix.entry.package_id }} / ${{ matrix.entry.target_id }}"
+          report_table "Status" "Duration" "Version" "Artifact"
+          dur_s="${{ steps.build.outputs.duration }}"
+          dur="${dur_s:-0}s"
+          if (( dur_s > 60 )); then dur="$((dur_s/60))m$((dur_s%60))s"; fi
+          case "${{ steps.build.outputs.completed }}" in
+            true)
+              report_row "SUCCESS" "$dur" \
+                "${{ matrix.entry.version_short }}" \
+                "pkg-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}"
+              ;;
+            false)
+              report_row "FAIL" "$dur" \
+                "${{ matrix.entry.version_short }}" \
+                "rc=${{ steps.build.outputs.rc }}, no artifact"
+              # Attach log tail so failures are diagnosable from the summary
+              if [[ -s "${{ steps.build.outputs.log_path }}" ]]; then
+                report_details \
+                  "Build log tail (last 300 lines)" \
+                  "$(tail -300 "${{ steps.build.outputs.log_path }}")"
+              fi
+              ;;
+          esac
+          report_table_end
+
+          # Cache status
+          report_note "**Caches**"
+          report_table "Cache" "Key" "Restore"
+          ccache_hit="${{ steps.cache_ccache.outputs.cache-hit }}"
+          report_row "$([[ "$ccache_hit" == "true" ]] && echo CACHED || echo BUILT)" \
+            "ccache" \
+            "ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}-${{ matrix.entry.version_short }}" \
+            "${ccache_hit:-miss}"
+          if [[ -n "${{ matrix.entry.extra_cache_key }}" ]]; then
+            extra_hit="${{ steps.cache_extra.outputs.cache-hit }}"
+            report_row "$([[ "$extra_hit" == "true" ]] && echo CACHED || echo BUILT)" \
+              "extra (${{ matrix.entry.package_id }})" \
+              "${{ matrix.entry.extra_cache_key }}" \
+              "${extra_hit:-miss}"
+          fi
+          report_table_end
+
+      - name: Save success marker
+        if: steps.build.outputs.completed == 'true'
+        run: mkdir -p /tmp/marker && echo ok > /tmp/marker/ok
+
+      - name: Upload success marker
+        if: steps.build.outputs.completed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/marker
+          # target_id in the key so each build_target has its own marker
+          key: success-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}-${{ matrix.entry.hash }}

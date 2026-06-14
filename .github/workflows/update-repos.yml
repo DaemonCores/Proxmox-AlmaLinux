@@ -1,0 +1,807 @@
+name: Update Package Repositories
+
+on:
+  workflow_call:
+    inputs:
+      shared_artifact_pattern:
+        type: string
+        required: true
+        description: 'Pattern for shared artifacts (e.g. pkg-*-x86_64)'
+      device_artifact_pattern:
+        type: string
+        required: false
+        default: ''
+        description: 'Pattern for device-specific artifacts — unused in single-node setup, kept for compat'
+      source_distro:
+        type: string
+        default: 'almalinux-10'
+        description: 'Source distro id from distros.yml (almalinux-10)'
+      device:
+        type: string
+        default: 'almabuilder'
+        description: 'Device/node ID. Fixed to almabuilder in single-node setup'
+      build_target:
+        type: string
+        default: 'x86_64'
+        description: 'Build target id. Fixed to x86_64 in single-arch setup'
+      force_rebuild:
+        type: boolean
+        default: false
+        description: 'Skip all existing-package checks — rebuild everything from scratch'
+      devices:
+        type: string
+        default: '[]'
+        description: 'JSON array of device IDs. Kept for compat, unused in single-node'
+    secrets:
+      GPG_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: write
+
+# Serialize only the deploy step that pushes to gh-pages.
+# cancel-in-progress:false queues instead of dropping.
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  # ==================================================================
+  # NORMALIZE: Extract all packages to intermediate format (parallel)
+  # ==================================================================
+  normalize:
+    runs-on: ubuntu-latest
+    outputs:
+      arches: ${{ steps.normalize.outputs.arches }}
+      count: ${{ steps.normalize.outputs.count }}
+      matrix: ${{ steps.normalize.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download shared (build_target) artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.shared_artifact_pattern }}
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download device-specific artifacts
+        if: inputs.device_artifact_pattern != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.device_artifact_pattern }}
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download noarch single-build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-noarch-*
+          path: noarch-stage/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Filter noarch packages
+        run: |
+          shopt -s nullglob
+          DEVICES='["almabuilder"]'
+          if [[ ! -d noarch-stage ]]; then
+            echo "no noarch artifacts pulled, skipping filter"
+            exit 0
+          fi
+          for f in noarch-stage/*.pkg.tar; do
+            base=$(basename "$f")
+            name="${base%_*}"
+            name="${name%_*}"
+            KEEP=false
+            for d in $(echo "$DEVICES" | jq -r '.[]'); do
+              if [[ "$name" == *-"$d" ]]; then
+                cp "$f" .
+                KEEP=true
+                break
+              fi
+            done
+            if [[ "$KEEP" == "true" ]]; then
+              continue
+            fi
+            # Universal noarch packages (no device suffix) → keep everywhere.
+            is_other_device=false
+            if [[ "$is_other_device" == "false" ]]; then
+              cp "$f" .
+            fi
+          done
+          rm -rf noarch-stage
+          echo "After noarch filter, package files in working dir:"
+          ls -lh *.pkg.tar 2>/dev/null | head -30 || true
+
+      - name: Check for packages
+        id: check
+        run: |
+          HAS_PKGS=false
+          ls *.pkg.tar 1>/dev/null 2>&1 && HAS_PKGS=true
+          ls *.rpm 1>/dev/null 2>&1 && HAS_PKGS=true
+
+          echo "has_pkgs=$HAS_PKGS" >> $GITHUB_OUTPUT
+          if [[ "$HAS_PKGS" == "true" ]]; then
+            echo "=== Downloaded packages ==="
+            ls -la *.pkg.tar *.rpm 2>/dev/null || true
+          else
+            echo "No packages to publish"
+          fi
+
+      - name: Install tools
+        if: steps.check.outputs.has_pkgs == 'true'
+        run: sudo apt-get update && sudo apt-get install -y rpm createrepo_c
+
+      - name: Normalize all packages
+        if: steps.check.outputs.has_pkgs == 'true'
+        id: normalize
+        run: |
+          chmod +x scripts/pkg-extract.sh scripts/pkg-build-rpm.sh scripts/resolve-deps.sh
+
+          SOURCE_DISTRO="${{ inputs.source_distro }}"
+          SCRIPT_DIR="$(pwd)/scripts"
+          MAX_PARALLEL=12
+          mkdir -p intermediates
+
+          PKG_INDEX=0
+
+          # 1) .pkg.tar = already intermediate, just extract (sequential — fast)
+          for f in *.pkg.tar; do
+            [[ -f "$f" ]] || continue
+            INTDIR="intermediates/pkg-${PKG_INDEX}"
+            mkdir -p "$INTDIR"
+            tar xf "$f" -C "$INTDIR"
+            echo "  [INT] $(cat "$INTDIR/meta/name") from $f"
+            PKG_INDEX=$((PKG_INDEX + 1))
+          done
+
+          # 2) RPM format — parallel extraction
+          for f in *.rpm; do
+            [[ -f "$f" ]] || continue
+            INTDIR="intermediates/pkg-${PKG_INDEX}"
+            PKG_INDEX=$((PKG_INDEX + 1))
+            "$SCRIPT_DIR/pkg-extract.sh" "$f" "$INTDIR" --source-distro "$SOURCE_DISTRO" &
+            while [[ $(jobs -rp | wc -l) -ge $MAX_PARALLEL ]]; do wait -n; done
+          done
+          wait
+
+          echo "=== Normalized $PKG_INDEX packages ==="
+
+          # Validate intermediates — remove incomplete ones
+          for intdir in intermediates/pkg-*; do
+            [[ -d "$intdir" ]] || continue
+            if [[ ! -s "$intdir/meta/name" || ! -d "$intdir/root" ]]; then
+              echo "WARNING: Removing incomplete intermediate: $intdir (name=$(cat "$intdir/meta/name" 2>/dev/null || echo '?'), root=$(test -d "$intdir/root" && echo ok || echo MISSING))"
+              rm -rf "$intdir"
+            fi
+          done
+
+          # Detect architectures
+          ARCHES=""
+          for intdir in intermediates/pkg-*; do
+            [[ -s "$intdir/meta/name" && -d "$intdir/root" ]] || continue
+            A=$(cat "$intdir/meta/arch")
+            ARCHES="$ARCHES $A"
+          done
+          ARCHES=$(echo "$ARCHES" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ' ')
+          echo "arches=$ARCHES" >> $GITHUB_OUTPUT
+          echo "Detected architectures: $ARCHES"
+          echo "count=$PKG_INDEX" >> $GITHUB_OUTPUT
+
+          # Generate own-packages skip list
+          for intdir in intermediates/pkg-*; do
+            [[ -s "$intdir/meta/name" && -d "$intdir/root" ]] || continue
+            cat "$intdir/meta/name"
+          done | sort -u > own-packages.txt
+          echo "Own packages ($(wc -l < own-packages.txt) entries):"
+          cat own-packages.txt
+
+          # Fetch existing package filenames from gh-pages
+          if [[ "${{ inputs.force_rebuild }}" == "true" ]]; then
+            echo "FORCE REBUILD: skipping existing-repo check — all packages will be rebuilt"
+            touch existing-repo.txt
+          else
+            git fetch origin gh-pages 2>/dev/null || true
+            git ls-tree -r --name-only origin/gh-pages 2>/dev/null \
+              | grep -E '\.(rpm)$' \
+              | grep -E '/(device|deps)/' \
+              > existing-repo.txt || touch existing-repo.txt
+          fi
+          echo "Existing repo: $(wc -l < existing-repo.txt) package files"
+
+          # Generate matrix from distros.yml — only enabled DNF distros
+          MATRIX="["
+          for id in $(yq -r '.distros.dnf[] | select(.enabled == true) | .id' distros.yml); do
+            version=$(yq -r ".distros.dnf[] | select(.id == \"$id\") | .version" distros.yml)
+            is_source=$([[ "$id" == "$SOURCE_DISTRO" ]] && echo true || echo false)
+            MATRIX+="{\"distro\":\"$id\",\"format\":\"rpm\",\"is_source\":$is_source,\"version\":\"$version\"},"
+          done
+          MATRIX="${MATRIX%,}]"
+
+          # Bail out early if no distros are enabled
+          if [[ "$MATRIX" == "[]" ]]; then
+            echo "ERROR: No enabled distros in distros.yml — nothing to publish" >&2
+            exit 1
+          fi
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Matrix: $MATRIX"
+
+      - name: Upload intermediates
+        if: steps.check.outputs.has_pkgs == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: intermediates-${{ inputs.device }}
+          path: |
+            intermediates/
+            own-packages.txt
+            existing-repo.txt
+            scripts/
+            distros.yml
+            pages/
+            README.md
+          retention-days: 1
+          overwrite: true
+
+  # ==================================================================
+  # BUILD-REPO: Build RPM repo for each distro (matrix)
+  # ==================================================================
+  build-repo:
+    needs: normalize
+    if: needs.normalize.outputs.count > 0
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.normalize.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: scripts
+
+      - name: Download intermediates
+        uses: actions/download-artifact@v4
+        with:
+          name: intermediates-${{ inputs.device }}
+
+      - name: Download dep cache
+        uses: actions/download-artifact@v4
+        with:
+          name: dep-cache-${{ inputs.device }}
+          path: dep-cache/
+        continue-on-error: true
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm createrepo-c
+          chmod +x scripts/pkg-extract.sh scripts/pkg-build-rpm.sh scripts/resolve-deps.sh
+
+      - name: Build RPM repo for ${{ matrix.distro }}
+        run: |
+          SCRIPT_DIR="$(pwd)/scripts"
+          DEP_MAP="$SCRIPT_DIR/dep-map.conf"
+          SOURCE_DISTRO="${{ inputs.source_distro }}"
+          DEVICE="${{ inputs.device }}"
+          DISTRO="${{ matrix.distro }}"
+          FORMAT="rpm"
+          IS_SOURCE="${{ matrix.is_source }}"
+          MAX_PARALLEL=8
+
+          echo "=== Building RPM repo for $DISTRO ==="
+          FAIL_LOG="build-failures.log"
+          > "$FAIL_LOG"
+
+          BUILD_SCRIPT="$SCRIPT_DIR/pkg-build-rpm.sh"
+
+          # Map arch for directory names (simplified: only x86_64)
+          map_dir_arch() {
+            local arch="$1"
+            case "$arch" in
+              x86_64|amd64)  echo "x86_64" ;;
+              all)           echo "noarch" ;;
+              *)             echo "$arch" ;;
+            esac
+          }
+
+          # Check if a package (name+version+arch) already exists in the repo
+          pkg_exists_in_repo() {
+            local name="$1" version="$2" arch="$3"
+            local rpm_arch
+            case "$arch" in x86_64|amd64) rpm_arch="x86_64";; all) rpm_arch="noarch";; *) rpm_arch="$arch";; esac
+            local expected="${name}-$(echo "$version" | sed 's/+[^-]*//' | tr ':~' '..' | sed 's/-/./g')-1.${rpm_arch}.rpm"
+            grep -qF "/$expected" existing-repo.txt 2>/dev/null
+          }
+
+          # Create output structure
+          mkdir -p repo-output
+
+          for arch in ${{ needs.normalize.outputs.arches }}; do
+            DIR_ARCH=$(map_dir_arch "$arch")
+            echo ""
+            echo "--- $DISTRO / $DIR_ARCH ($arch) ---"
+
+            # Create RPM output dirs
+            # Single node: device/{almabuilder}, deps/{almalinux-10}
+            VERSION="${{ matrix.version }}"
+            OUTPUT_DIR="repo-output/dnf/device/${DEVICE}/${VERSION}/${DIR_ARCH}"
+            DEP_OUTPUT_DIR="repo-output/dnf/deps/${SOURCE_DISTRO}/${VERSION}/${DIR_ARCH}"
+            mkdir -p "$OUTPUT_DIR" "$DEP_OUTPUT_DIR"
+
+            if [[ "$IS_SOURCE" == "true" ]]; then
+              # Source distro: build directly, no dep resolution
+              echo "Building packages (source distro, no dep resolution)..."
+              for intdir in intermediates/pkg-*; do
+                [[ -s "$intdir/meta/name" && -d "$intdir/root" ]] || continue
+                [[ "$(cat "$intdir/meta/arch")" == "$arch" ]] || continue
+                PKG_NAME=$(cat "$intdir/meta/name")
+                PKG_VERSION=$(cat "$intdir/meta/version")
+                if pkg_exists_in_repo "$PKG_NAME" "$PKG_VERSION" "$arch"; then
+                  echo "SKIP: $PKG_NAME ($PKG_VERSION) already in $DISTRO repo"
+                  continue
+                fi
+                (
+                  INTCOPY=$(mktemp -d)
+                  cp -a "$intdir"/* "$INTCOPY/"
+                  TMPOUT=$(mktemp -d)
+                  if "$BUILD_SCRIPT" "$INTCOPY" "$TMPOUT/" --dep-map "$DEP_MAP" --target-distro "$DISTRO" 2>&1; then
+                    cp "$TMPOUT"/* "$OUTPUT_DIR/" 2>/dev/null || true
+                  else
+                    echo "FAIL: $(cat "$INTCOPY/meta/name" 2>/dev/null) — build for $DISTRO" | tee -a "$FAIL_LOG"
+                  fi
+                  rm -rf "$INTCOPY" "$TMPOUT"
+                ) &
+                while [[ $(jobs -rp | wc -l) -ge $MAX_PARALLEL ]]; do wait -n; done
+              done
+              wait
+            else
+              # Non-source distro: build temp → resolve deps → rebuild with mapping
+
+              # Step 1: Build temp packages for dep scanning (parallel)
+              echo "Step 1: Building temp packages for dep scanning..."
+              TEMP_DIR=$(mktemp -d)
+              for intdir in intermediates/pkg-*; do
+                [[ -s "$intdir/meta/name" && -d "$intdir/root" ]] || continue
+                [[ "$(cat "$intdir/meta/arch")" == "$arch" ]] || continue
+                (
+                  INTCOPY=$(mktemp -d)
+                  cp -a "$intdir"/* "$INTCOPY/"
+                  TMPOUT=$(mktemp -d)
+                  if "$BUILD_SCRIPT" "$INTCOPY" "$TMPOUT/" --dep-map "$DEP_MAP" --target-distro "$DISTRO" 2>"$TMPOUT/build.err"; then
+                    cp "$TMPOUT"/* "$TEMP_DIR/" 2>/dev/null || true
+                  else
+                    { echo "FAIL: $(cat "$INTCOPY/meta/name" 2>/dev/null) — temp build for $DISTRO"; grep -i 'error:' "$TMPOUT/build.err" 2>/dev/null | tail -5 | sed 's/^/  /'; } >> "$FAIL_LOG"
+                  fi
+                  rm -rf "$INTCOPY" "$TMPOUT"
+                ) &
+                while [[ $(jobs -rp | wc -l) -ge $MAX_PARALLEL ]]; do wait -n; done
+              done
+              wait
+
+              # Step 2: Resolve deps (batch fetch + parallel rebuild)
+              echo "Step 2: Resolving dependencies..."
+              FETCH_DIR="fetched-deps-${DISTRO}-${arch}"
+              mkdir -p "$FETCH_DIR"
+              "$SCRIPT_DIR/resolve-deps.sh" \
+                --source-pkgs "$TEMP_DIR" \
+                --source-distro "$SOURCE_DISTRO" \
+                --target-distro "$DISTRO" \
+                --target-format "$FORMAT" \
+                --distros-config distros.yml \
+                --dep-map "$DEP_MAP" \
+                --ignore-file "$SCRIPT_DIR/dep-ignore.conf" \
+                --output-dir "$FETCH_DIR" \
+                --arch "$arch" \
+                --skip-names own-packages.txt \
+                --existing-repo existing-repo.txt \
+                --prefix "$SOURCE_DISTRO" \
+                --cache-dir dep-cache/ || echo "FAIL: dependency resolution for $DISTRO/$arch" | tee -a "$FAIL_LOG"
+
+              # Step 3: Copy prefixed dep packages to shared deps output
+              for f in "$FETCH_DIR"/*.rpm; do [[ -f "$f" ]] && cp "$f" "$DEP_OUTPUT_DIR/"; done
+
+              # Step 4: Rebuild our packages with mapping applied (parallel)
+              echo "Step 4: Rebuilding packages with dependency mapping..."
+              MAPPING="$FETCH_DIR/dep-mapping.txt"
+              for intdir in intermediates/pkg-*; do
+                [[ -s "$intdir/meta/name" && -d "$intdir/root" ]] || continue
+                [[ "$(cat "$intdir/meta/arch")" == "$arch" ]] || continue
+                PKG_NAME=$(cat "$intdir/meta/name")
+                PKG_VERSION=$(cat "$intdir/meta/version")
+                if pkg_exists_in_repo "$PKG_NAME" "$PKG_VERSION" "$arch"; then
+                  echo "SKIP: $PKG_NAME ($PKG_VERSION) already in $DISTRO repo"
+                  continue
+                fi
+                (
+                  INTCOPY=$(mktemp -d)
+                  cp -a "$intdir"/* "$INTCOPY/"
+
+                  if [[ -s "$MAPPING" ]]; then
+                    while IFS='=' read -r orig prefixed; do
+                      [[ -z "$orig" ]] && continue
+                      sed -i "s/^${orig}$/${prefixed}/" "$INTCOPY/meta/depends" 2>/dev/null || true
+                    done < "$MAPPING"
+                  fi
+
+                  TMPOUT=$(mktemp -d)
+                  if "$BUILD_SCRIPT" "$INTCOPY" "$TMPOUT/" --dep-map "$DEP_MAP" --target-distro "$DISTRO" 2>"$TMPOUT/build.err"; then
+                    cp "$TMPOUT"/* "$OUTPUT_DIR/" 2>/dev/null || true
+                  else
+                    { echo "FAIL: $(cat "$INTCOPY/meta/name" 2>/dev/null) — rebuild for $DISTRO"; grep -i 'error:' "$TMPOUT/build.err" 2>/dev/null | tail -5 | sed 's/^/  /'; } >> "$FAIL_LOG"
+                  fi
+                  rm -rf "$INTCOPY" "$TMPOUT"
+                ) &
+                while [[ $(jobs -rp | wc -l) -ge $MAX_PARALLEL ]]; do wait -n; done
+              done
+              wait
+
+              rm -rf "$TEMP_DIR"
+            fi
+          done
+
+          if [[ -s "$FAIL_LOG" ]]; then
+            echo ""
+            echo "========================================="
+            echo "FAILURES ($DISTRO / RPM):"
+            cat "$FAIL_LOG"
+            echo "========================================="
+          fi
+          echo "=== Done building RPM repo for $DISTRO ==="
+
+      - name: Report publish outcome
+        if: always()
+        run: |
+          source scripts/report.sh
+          DEVICE="${{ inputs.device }}"
+          DISTRO="${{ matrix.distro }}"
+          report_section "Publish · $DEVICE / $DISTRO (RPM)"
+          shopt -s nullglob
+          report_table "Status" "Arch" "Packages" "Deps translated" "Oversized dropped" "Failures"
+          for arch in ${{ needs.normalize.outputs.arches }}; do
+            out_count=$(find "repo-output/dnf/device/${DEVICE}" -name "*.rpm" 2>/dev/null | wc -l)
+            map_file="fetched-deps-${DISTRO}-${arch}/dep-mapping.txt"
+            oversize_file="fetched-deps-${DISTRO}-${arch}/oversized.txt"
+            dep_count=0;       [[ -f "$map_file"      ]] && dep_count=$(wc -l < "$map_file")
+            oversize_count=0;  [[ -f "$oversize_file" ]] && oversize_count=$(wc -l < "$oversize_file")
+            fail_count=0;      [[ -f build-failures.log ]] && fail_count=$(grep -c '^FAIL:' build-failures.log || true)
+            status="BUILT"
+            (( oversize_count > 0 )) && status="WARN"
+            (( fail_count > 0 ))     && status="FAIL"
+            report_row "$status" "$arch" "$out_count" "$dep_count" "$oversize_count" "$fail_count"
+          done
+          report_table_end
+          for f in fetched-deps-*/dep-mapping.txt; do
+            [[ -s "$f" ]] || continue
+            arch=$(basename "$(dirname "$f")" | sed 's/^fetched-deps-[^-]*-//')
+            report_details "Translated dependencies ($arch, $(wc -l < "$f") entries)" "$(cat "$f")"
+          done
+          for f in fetched-deps-*/oversized.txt; do
+            [[ -s "$f" ]] || continue
+            arch=$(basename "$(dirname "$f")" | sed 's/^fetched-deps-[^-]*-//')
+            report_details "Oversized packages dropped ($arch, $(wc -l < "$f") entries, > 100 MB)" "$(cat "$f")"
+          done
+          if [[ -s build-failures.log ]]; then
+            report_details "Failures ($(grep -c '^FAIL:' build-failures.log) entries)" "$(cat build-failures.log)"
+          fi
+
+      - name: Upload repo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-${{ inputs.device }}-${{ matrix.distro }}
+          path: repo-output/
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload dep cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: dep-cache-${{ inputs.device }}
+          path: dep-cache/
+          retention-days: 1
+          overwrite: true
+
+  # ==================================================================
+  # DEPLOY: Merge all repo artifacts and push to gh-pages
+  # ==================================================================
+  deploy:
+    needs: [normalize, build-repo]
+    if: "!cancelled() && needs.normalize.outputs.count > 0"
+    runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages-push
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download intermediates (for pages template)
+        uses: actions/download-artifact@v4
+        with:
+          name: intermediates-${{ inputs.device }}
+          path: intermediates-data/
+
+      - name: Download all repo artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: repo-${{ inputs.device }}-*
+          path: repo-artifacts/
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y pandoc createrepo_c
+
+      - name: Import GPG key
+        run: echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+      - name: Checkout gh-pages
+        run: |
+          git fetch --depth=1 origin gh-pages:gh-pages || true
+          git worktree add gh-pages-dir gh-pages || {
+            git worktree add --detach gh-pages-dir
+            cd gh-pages-dir
+            git checkout --orphan gh-pages
+            git rm -rf . 2>/dev/null || true
+            cd ..
+          }
+          SOURCE_DISTRO="${{ inputs.source_distro }}"
+
+          # Single node: always deploy for almabuilder
+          DEPLOY_DEVICES="almabuilder"
+          echo "DEPLOY_DEVICES=$DEPLOY_DEVICES" >> "$GITHUB_ENV"
+          echo "Deploying for devices: $DEPLOY_DEVICES"
+
+          # Force rebuild: wipe ONLY the packages this invocation is about to publish
+          if [[ "${{ inputs.force_rebuild }}" == "true" ]] && [[ -s intermediates-data/own-packages.txt ]]; then
+            echo "FORCE REBUILD: wiping only packages listed in own-packages.txt"
+            for DEVICE in $DEPLOY_DEVICES; do
+              while IFS= read -r pkg; do
+                [[ -z "$pkg" ]] && continue
+                find "gh-pages-dir/dnf/device/${DEVICE}" -type f -name "${pkg}-*.rpm" -delete 2>/dev/null || true
+              done < intermediates-data/own-packages.txt
+            done
+            rm -rf "gh-pages-dir/dnf/deps/${SOURCE_DISTRO}"
+          fi
+
+          # Device repos — almabuilder only
+          for DEVICE in $DEPLOY_DEVICES; do
+            mkdir -p "gh-pages-dir/dnf/device/${DEVICE}"
+          done
+          # Shared deps repos
+          mkdir -p "gh-pages-dir/dnf/deps/${SOURCE_DISTRO}"
+
+      - name: Merge repo artifacts
+        run: |
+          for repo_dir in repo-artifacts/repo-*/; do
+            [[ -d "$repo_dir" ]] || continue
+            echo "Merging: $repo_dir"
+            cp -a "$repo_dir"/* gh-pages-dir/ 2>/dev/null || true
+          done
+          echo "=== Merged structure ==="
+          find gh-pages-dir -type f | head -50
+
+      - name: Cleanup old package versions
+        run: |
+          # Keep only 3 latest major versions per package, delete older ones
+          cleanup_old_versions() {
+            local dir="$1"
+            [[ -d "$dir" ]] || return 0
+
+            declare -A SEEN_MAJORS
+            declare -A DELETE_FILES
+
+            for file in "$dir"/*; do
+              [[ -f "$file" ]] || continue
+              local bn
+              bn=$(basename "$file")
+              local pkg_name="" version=""
+
+              local stem="${bn%.*.rpm}"
+              pkg_name=$(echo "$stem" | rev | cut -d- -f3- | rev)
+              version=$(echo "$stem" | rev | cut -d- -f2 | rev)
+
+              local major
+              major=$(echo "$version" | cut -d. -f1)
+              [[ "$major" =~ ^[0-9]+$ ]] || continue
+
+              SEEN_MAJORS["$pkg_name"]+=" $major"
+              DELETE_FILES["${pkg_name}:${major}"]+=" $file"
+            done
+
+            for pkg_name in $(printf '%s\n' "${!SEEN_MAJORS[@]}" | sort -u); do
+              local majors
+              majors=$(echo "${SEEN_MAJORS[$pkg_name]}" | tr ' ' '\n' | sort -rn | uniq)
+              local count=0
+              for major in $majors; do
+                count=$((count + 1))
+                if [ $count -gt 3 ]; then
+                  for f in ${DELETE_FILES["${pkg_name}:${major}"]}; do
+                    echo "  CLEANUP: $(basename "$f") (major=$major, keeping latest 3)"
+                    rm -f "$f"
+                  done
+                fi
+              done
+            done
+          }
+
+          for DEVICE in $DEPLOY_DEVICES; do
+            echo "=== Cleaning old package versions for $DEVICE ==="
+            for rpm_dir in gh-pages-dir/dnf/device/${DEVICE}/*/*/; do
+              cleanup_old_versions "$rpm_dir"
+            done
+          done
+          # Deps repos (shared, only once)
+          SOURCE_DISTRO="${{ inputs.source_distro }}"
+          for rpm_dir in gh-pages-dir/dnf/deps/${SOURCE_DISTRO}/*/*/; do
+            cleanup_old_versions "$rpm_dir"
+          done
+
+      - name: Remove oversized files
+        run: |
+          MAX_MB=100
+          find gh-pages-dir -type f -size +${MAX_MB}M | while read -r f; do
+            echo "Removing oversized file: $f ($(du -h "$f" | cut -f1))"
+            rm -f "$f"
+          done
+
+      - name: Generate RPM metadata
+        run: |
+          echo "=== Generating RPM metadata ==="
+          for DEVICE in $DEPLOY_DEVICES; do
+            for rpm_root in "gh-pages-dir/dnf/device/${DEVICE}"; do
+              [[ -d "$rpm_root" ]] || continue
+              find "$rpm_root" -name '*.rpm' -printf '%h\n' 2>/dev/null | sort -u | while read -r rpm_dir; do
+                echo "  createrepo_c $rpm_dir"
+                createrepo_c "$rpm_dir/"
+              done
+            done
+          done
+          for rpm_root in "gh-pages-dir/dnf/deps/${SOURCE_DISTRO}"; do
+            [[ -d "$rpm_root" ]] || continue
+            find "$rpm_root" -name '*.rpm' -printf '%h\n' 2>/dev/null | sort -u | while read -r rpm_dir; do
+              echo "  createrepo_c $rpm_dir"
+              createrepo_c "$rpm_dir/"
+            done
+          done
+
+      - name: Sign DNF repos
+        run: |
+          DEVICE="${{ inputs.device }}"
+          SOURCE_DISTRO="${{ inputs.source_distro }}"
+
+          sign_dnf_repo() {
+            local repo_dir="$1" label="$2" baseurl_path="$3"
+            [[ -d "$repo_dir" ]] || return 0
+            gpg --armor --export "AlmaBuilder Packages" > "${repo_dir}/almabuilder.gpg"
+
+            find "$repo_dir" -name 'repomd.xml' | while read -r repomd; do
+              rm -f "${repomd}.asc"
+              gpg --batch --default-key "AlmaBuilder Packages" -abs \
+                -o "${repomd}.asc" "$repomd"
+            done
+
+            cat > "${repo_dir}/almabuilder-${label}.repo" << REPO_EOF
+          [almabuilder-${label}]
+          name=AlmaBuilder Packages (${label})
+          baseurl=https://almabuilder.github.io/almabuilder-packages/${baseurl_path}/\$releasever/\$basearch/
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://almabuilder.github.io/almabuilder-packages/${baseurl_path}/almabuilder.gpg
+          REPO_EOF
+          }
+
+          sign_dnf_repo "gh-pages-dir/dnf/device/${DEVICE}" "${DEVICE}" "dnf/device/${DEVICE}"
+          sign_dnf_repo "gh-pages-dir/dnf/deps/${SOURCE_DISTRO}" "deps-${SOURCE_DISTRO}" "dnf/deps/${SOURCE_DISTRO}"
+
+      - name: Generate pages
+        run: |
+          TEMPLATE="intermediates-data/pages/template.html"
+          [[ -f "$TEMPLATE" ]] || exit 0
+
+          README_HTML=""
+          if [[ -f README.md ]]; then
+            README_HTML=$(pandoc README.md --from gfm --to html5 2>/dev/null || true)
+          fi
+
+          render_page() {
+            local title="$1" body_file="$2" output="$3"
+            awk -v title="$title" '
+              /\$title\$/ { gsub(/\$title\$/, title) }
+              /\$body\$/ { while ((getline line < bf) > 0) print line; next }
+              { print }
+            ' bf="$body_file" "$TEMPLATE" > "$output"
+          }
+
+          build_listing() {
+            local dir="$1" rel_path="$2" show_readme="$3" out="$4"
+            > "$out"
+
+            if [[ -z "$rel_path" ]]; then
+              echo '<h2>Repository</h2>' >> "$out"
+            else
+              echo "<h2>&#x1F4C2; /${rel_path}</h2>" >> "$out"
+            fi
+
+            echo '<table>' >> "$out"
+            if [[ -n "$rel_path" ]]; then
+              echo '<tr><td style="width:2em;text-align:center"><a href="..">&#x1F4C1;</a></td><td><a href="..">..</a></td><td style="text-align:right;font-family:monospace"><a href=".."></a></td></tr>' >> "$out"
+            fi
+            for item in "$dir"/*/; do
+              [[ -d "$item" ]] || continue
+              local name
+              name=$(basename "$item")
+              [[ "$name" == ".git" ]] && continue
+              echo "<tr><td style=\"width:2em;text-align:center\"><a href=\"${name}/\">&#x1F4C1;</a></td><td><a href=\"${name}/\">${name}/</a></td><td style=\"text-align:right;font-family:monospace\"><a href=\"${name}/\"></a></td></tr>" >> "$out"
+            done
+            for item in "$dir"/*; do
+              [[ -f "$item" ]] || continue
+              local name size
+              name=$(basename "$item")
+              [[ "$name" == "index.html" ]] && continue
+              size=$(du -h "$item" | cut -f1)
+              echo "<tr><td style=\"width:2em;text-align:center\"><a href=\"${name}\">&#x1F4C4;</a></td><td><a href=\"${name}\">${name}</a></td><td style=\"text-align:right;font-family:monospace\"><a href=\"${name}\">${size}</a></td></tr>" >> "$out"
+            done
+            echo '</table>' >> "$out"
+
+            if [[ "$show_readme" == "true" ]] && [[ -n "$README_HTML" ]]; then
+              echo '<hr>' >> "$out"
+              echo "$README_HTML" >> "$out"
+            fi
+          }
+
+          BODY_TMP=$(mktemp)
+
+          build_listing "gh-pages-dir" "" "true" "$BODY_TMP"
+          render_page "AlmaBuilder Packages" "$BODY_TMP" "gh-pages-dir/index.html"
+
+          find gh-pages-dir -mindepth 1 -type d | sort | while read -r dir; do
+            [[ "$dir" == *".git"* ]] && continue
+            rel_path="${dir#gh-pages-dir/}"
+
+            show_readme="false"
+            case "$rel_path" in dnf) show_readme="true" ;; esac
+
+            build_listing "$dir" "$rel_path" "$show_readme" "$BODY_TMP"
+            render_page "Index of /${rel_path}" "$BODY_TMP" "$dir/index.html"
+          done
+
+          rm -f "$BODY_TMP"
+
+      - name: Deploy to gh-pages
+        run: |
+          cd gh-pages-dir
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for DEVICE in $DEPLOY_DEVICES; do
+            git add "dnf/device/${DEVICE}/" || true
+            if ! git diff --cached --quiet; then
+              git commit -m "Update ${DEVICE} repositories"
+            fi
+          done
+          git add "dnf/deps/" || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Update deps/${SOURCE_DISTRO} repositories"
+          fi
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Update index pages"
+          fi
+
+          for attempt in 1 2 3 4 5; do
+            git push origin gh-pages && exit 0
+            echo "Push attempt $attempt failed, rebasing -X theirs..."
+            git fetch --depth=1 origin gh-pages
+            if ! git rebase -X theirs origin/gh-pages; then
+              echo "Rebase still conflicted — taking remote version of unresolved paths"
+              git checkout --theirs -- . 2>/dev/null || true
+              git add -A
+              git rebase --continue || git rebase --skip || { git rebase --abort; exit 1; }
+            fi
+          done
+          exit 1

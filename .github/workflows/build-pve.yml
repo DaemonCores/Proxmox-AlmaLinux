@@ -377,3 +377,44 @@ jobs:
       - name: Publish Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # ===========================================================================
+  # SAVE TRACKERS: Persist version tracker files so that compute-chains.sh
+  # can detect version changes on the next run. Without this job, the
+  # .trackers/ directory is never updated and version-change detection
+  # is effectively disabled.
+  # ===========================================================================
+  save-trackers:
+    needs: [prepare, update-repo]
+    if: "!cancelled() && needs.update-repo.result == 'success'"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Save version trackers
+        run: |
+          VERSIONS_JSON='${{ needs.prepare.outputs.versions_json }}'
+          PKGS_JSON=$(yq -o=json '.packages' packages.yml)
+          pkg_count=$(echo "$PKGS_JSON" | jq 'length')
+          for (( i=0; i<pkg_count; i++ )); do
+            pkg_id=$(echo "$PKGS_JSON" | jq -r ".[$i].id")
+            tracker_file=$(echo "$PKGS_JSON" | jq -r ".[$i].tracker_file // empty")
+            version_source=$(echo "$PKGS_JSON" | jq -r ".[$i].version_source")
+            if [[ -z "$tracker_file" ]] || [[ "$version_source" == "hash-only" ]]; then
+              continue
+            fi
+            version=$(echo "$VERSIONS_JSON" | jq -r ".\"$pkg_id\" // empty")
+            if [[ -n "$version" ]]; then
+              mkdir -p .trackers
+              echo "$version" > ".trackers/$tracker_file"
+              echo "Saved $tracker_file = $version"
+            fi
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .trackers/
+          git commit -m "Update version trackers" || echo "No changes"
+          git push origin main

@@ -76,7 +76,7 @@ To add a new package:
 | Project | Role |
 |---------|------|
 | [proxmox-nixos](https://github.com/SaumonNet/proxmox-nixos) | Complete PVE package graph and build orchestration reference (50+ Nix expressions) |
-| `astralemu-packages` | Reusable CI/CD plumbing for cross-format package conversion (30–40% of infrastructure scripts) |
+| `AlmaBuilder-Packages` | Reusable CI/CD plumbing for RPM package conversion (30–40% of infrastructure scripts) |
 
 ## Status
 
