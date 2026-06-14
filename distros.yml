@@ -1,0 +1,15 @@
+# AlmaBuilder — Target distribution definitions
+#
+# Single distribution: AlmaLinux 10 via DNF.
+# The `enabled` flag controls whether the CI publishes to this distro.
+# Disabled distros stay defined here but are skipped by compute-chains.sh
+# and update-repo steps. Flip to true to re-enable publication.
+
+distros:
+  dnf:
+    - id: almalinux-10
+      enabled: true
+      name: "AlmaLinux 10"
+      type: almalinux
+      version: "10"
+      baseurl: https://repo.almalinux.org/almalinux/10/BaseOS/x86_64/os/

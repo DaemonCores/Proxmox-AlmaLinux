@@ -1,0 +1,379 @@
+name: Build PVE Packages
+
+on:
+  schedule:
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild all packages'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      force:
+        type: boolean
+        default: false
+      skip_deploy:
+        description: 'Skip the final deploy step'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-pve
+  cancel-in-progress: false
+
+env:
+  CACHE_KEY: pve-build-base-v1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  # ===========================================================================
+  # PREPARE: Load package matrix, fetch versions, compute build chains,
+  # create and cache base image with all build dependencies.
+  # ===========================================================================
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.load-packages.outputs.packages }}
+      chain_1_ind: ${{ steps.chains.outputs.chain_1_ind }}
+      chain_1_dep: ${{ steps.chains.outputs.chain_1_dep }}
+      chain_2_ind: ${{ steps.chains.outputs.chain_2_ind }}
+      chain_2_dep: ${{ steps.chains.outputs.chain_2_dep }}
+      chain_3_ind: ${{ steps.chains.outputs.chain_3_ind }}
+      chain_3_dep: ${{ steps.chains.outputs.chain_3_dep }}
+      chain_4_ind: ${{ steps.chains.outputs.chain_4_ind }}
+      chain_4_dep: ${{ steps.chains.outputs.chain_4_dep }}
+      aggregators: ${{ steps.chains.outputs.aggregators }}
+      any_build: ${{ steps.chains.outputs.any_build }}
+      versions_json: ${{ steps.chains.outputs.versions_json }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Load package matrix
+        id: load-packages
+        run: |
+          PACKAGES=$(yq -o=json -I=0 '.packages' packages.yml)
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+
+      - name: Fetch latest versions
+        id: versions
+        run: |
+          PKGS_JSON=$(yq -o=json '.packages' packages.yml)
+          VERSIONS="{}"
+
+          for i in $(seq 0 $(( $(echo "$PKGS_JSON" | jq 'length') - 1 ))); do
+            pkg_id=$(echo "$PKGS_JSON" | jq -r ".[$i].id")
+            source=$(echo "$PKGS_JSON" | jq -r ".[$i].version_source")
+            repo=$(echo "$PKGS_JSON" | jq -r ".[$i].repo // empty")
+
+            case "$source" in
+              git)
+                # Fetch latest commit from git.proxmox.com
+                if [[ -n "$repo" ]]; then
+                  version=$(curl -fsSL "https://git.proxmox.com/api/v4/projects/$(echo "$repo" | sed 's|/|%2F|g')/repository/commits/master" | jq -r '.id // empty')
+                  if [[ -z "$version" || "$version" == "null" ]]; then
+                    echo "WARN: Failed to fetch $pkg_id version, using hash-only"
+                    version=""
+                  fi
+                else
+                  version=""
+                fi
+                ;;
+              hash-only)
+                version=""
+                ;;
+            esac
+
+            if [[ -n "$version" ]]; then
+              VERSIONS=$(echo "$VERSIONS" | jq --arg id "$pkg_id" --arg v "$version" '. + {($id): $v}')
+              echo "  $pkg_id: $version"
+            fi
+          done
+
+          echo "versions_json<<EOF" >> $GITHUB_OUTPUT
+          echo "$VERSIONS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Fetch success markers
+        id: markers
+        run: |
+          MARKERS=$(gh api repos/${{ github.repository }}/actions/caches \
+            --paginate --jq '.actions_caches[].key' | grep '^success-' || true)
+          echo "markers_list<<EOF" >> $GITHUB_OUTPUT
+          echo "$MARKERS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Compute build chains
+        id: chains
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSIONS_JSON='${{ steps.versions.outputs.versions_json }}'
+          MARKERS_LIST='${{ steps.markers.outputs.markers_list }}'
+          FORCE="${{ inputs.force == true }}"
+          export VERSIONS_JSON MARKERS_LIST FORCE GITHUB_OUTPUT
+          bash scripts/compute-chains.sh
+
+      # -----------------------------------------------------------------------
+      # Base image: single arch (x86_64), AlmaLinux 10 via DNF
+      # -----------------------------------------------------------------------
+      - name: Restore x86_64 cached image
+        id: cache-x86_64
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/pve-build.tar
+          key: ${{ env.CACHE_KEY }}-x86_64
+
+      - name: Build x86_64 base image if not cached
+        if: steps.cache-x86_64.outputs.cache-hit != 'true'
+        run: |
+          docker run --name pve-build-base --platform linux/amd64 almalinux:10 bash -c '
+            set -e
+
+            dnf install -y epel-release
+            dnf makecache
+
+            # Base tools
+            dnf install -y \
+              bash curl wget git tar gzip xz patch diffutils which
+
+            # Build tools
+            dnf install -y \
+              gcc gcc-c++ make cmake meson ninja-build \
+              automake autoconf libtool rpm-build rpmlint
+
+            # Perl 5.40
+            dnf install -y \
+              perl perl-devel perl-ExtUtils-Embed perl-CPAN
+
+            # PVE system dependencies
+            dnf install -y \
+              corosync-devel libqb-devel fuse3-devel \
+              openvswitch lvm2 device-mapper-multipath \
+              iscsi-initiator-utils targetcli nfs-utils rpcbind \
+              smartmontools qemu-kvm qemu-img libvirt-client \
+              bridge-utils dnsmasq iproute iptables ipset \
+              ebtables nftables
+
+            # Development libraries
+            dnf install -y \
+              openssl-devel libxml2-devel libuuid-devel libblkid-devel \
+              pango-devel glib2-devel json-c-devel libtirpc-devel \
+              sqlite-devel rrdtool-devel boost-devel jansson-devel
+
+            # Rust toolchain (for pve-rs)
+            dnf install -y rust cargo
+
+            # Repo tools
+            dnf install -y createrepo_c gnupg2
+
+            # Install yq (mikefarah)
+            YQ_ARCH=$(uname -m)
+            wget -qO /usr/bin/yq "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${YQ_ARCH}"
+            chmod +x /usr/bin/yq
+
+            dnf clean all
+            rm -rf /var/cache/dnf
+          '
+          docker commit pve-build-base pve-build-image
+          docker save pve-build-image -o /tmp/pve-build.tar
+          docker rm pve-build-base
+
+      - name: Save x86_64 cached image
+        if: steps.cache-x86_64.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/pve-build.tar
+          key: ${{ env.CACHE_KEY }}-x86_64
+
+      - name: Load base image
+        run: docker load -i /tmp/pve-build.tar
+
+  # ===========================================================================
+  # BUILD CHAINS: 4 parallel chains × 2 levels (ind/dep) + aggregators
+  # Each chain: max-parallel 3 → total 4×3 = 12 concurrent jobs
+  # Auto-assigned from packages.yml via compute-chains.sh bin-packing
+  # ===========================================================================
+
+  chain-1-ind:
+    needs: prepare
+    if: fromJSON(needs.prepare.outputs.chain_1_ind)[0] != null
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_1_ind }}
+
+  chain-1-dep:
+    needs: [prepare, chain-1-ind]
+    if: "!cancelled() && needs.prepare.result == 'success' && fromJSON(needs.prepare.outputs.chain_1_dep)[0] != null"
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_1_dep }}
+
+  chain-2-ind:
+    needs: prepare
+    if: fromJSON(needs.prepare.outputs.chain_2_ind)[0] != null
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_2_ind }}
+
+  chain-2-dep:
+    needs: [prepare, chain-2-ind]
+    if: "!cancelled() && needs.prepare.result == 'success' && fromJSON(needs.prepare.outputs.chain_2_dep)[0] != null"
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_2_dep }}
+
+  chain-3-ind:
+    needs: prepare
+    if: fromJSON(needs.prepare.outputs.chain_3_ind)[0] != null
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_3_ind }}
+
+  chain-3-dep:
+    needs: [prepare, chain-3-ind]
+    if: "!cancelled() && needs.prepare.result == 'success' && fromJSON(needs.prepare.outputs.chain_3_dep)[0] != null"
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_3_dep }}
+
+  chain-4-ind:
+    needs: prepare
+    if: fromJSON(needs.prepare.outputs.chain_4_ind)[0] != null
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_4_ind }}
+
+  chain-4-dep:
+    needs: [prepare, chain-4-ind]
+    if: "!cancelled() && needs.prepare.result == 'success' && fromJSON(needs.prepare.outputs.chain_4_dep)[0] != null"
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.chain_4_dep }}
+
+  aggregators:
+    needs: [prepare, chain-1-ind, chain-1-dep, chain-2-ind, chain-2-dep, chain-3-ind, chain-3-dep, chain-4-ind, chain-4-dep]
+    if: "!cancelled() && needs.prepare.result == 'success' && fromJSON(needs.prepare.outputs.aggregators)[0] != null"
+    uses: ./.github/workflows/build-chain.yml
+    with:
+      chain_matrix: ${{ needs.prepare.outputs.aggregators }}
+
+  # ===========================================================================
+  # UPDATE REPO: Collect .pkg.tar artifacts and publish RPM repo
+  # via createrepo_c for the single target (x86_64 / AlmaLinux 10).
+  # ===========================================================================
+  update-repo:
+    needs: [prepare, chain-1-ind, chain-1-dep, chain-2-ind, chain-2-dep, chain-3-ind, chain-3-dep, chain-4-ind, chain-4-dep, aggregators]
+    if: >-
+      !cancelled() &&
+      (needs.chain-1-ind.result == 'success' ||
+       needs.chain-2-ind.result == 'success' ||
+       needs.chain-3-ind.result == 'success' ||
+       needs.chain-4-ind.result == 'success' ||
+       needs.aggregators.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download all package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'pkg-*'
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Restore cached base image
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/pve-build.tar
+          key: ${{ env.CACHE_KEY }}-x86_64
+
+      - name: Load base image
+        run: docker load -i /tmp/pve-build.tar
+
+      - name: Build RPM repository
+        run: |
+          REPO_DIR="repo/x86_64"
+          mkdir -p "$REPO_DIR"
+
+          # Copy all .rpm files from artifacts into the repo directory
+          find artifacts/ -name '*.rpm' -exec cp -t "$REPO_DIR/" {} +
+
+          # Generate RPM metadata with createrepo_c inside the AlmaLinux container
+          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+            pve-build-image bash -c "
+              set -e
+              cd $REPO_DIR
+              if [ \$(ls -1 *.rpm 2>/dev/null | wc -l) -gt 0 ]; then
+                createrepo_c .
+                echo 'RPM repository metadata generated'
+              else
+                echo 'No RPM packages found, skipping createrepo_c'
+              fi
+            "
+
+      - name: Upload repo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-repo
+          path: repo/
+          retention-days: 30
+
+      - name: Sign repository metadata
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          docker run --rm -v "$(pwd):/workspace" -w /workspace \
+            -e GPG_PRIVATE_KEY \
+            pve-build-image bash -c '
+              set -e
+              echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+              GPG_KEYID=$(gpg --list-keys --with-colons | grep "^fpr" | head -1 | cut -d: -f10)
+              cd repo/x86_64
+              gpg --batch --yes --detach-sign --armor repomd.xml
+              echo "Repository signed with key $GPG_KEYID"
+            '
+
+  # ===========================================================================
+  # DEPLOY: Push updated repo to Pages or artifact storage
+  # ===========================================================================
+  deploy:
+    needs: [update-repo]
+    if: "!cancelled() && !inputs.skip_deploy && needs.update-repo.result == 'success'"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download RPM repo artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rpm-repo
+          path: repo/
+
+      - name: Deploy to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: repo/
+
+      - name: Publish Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

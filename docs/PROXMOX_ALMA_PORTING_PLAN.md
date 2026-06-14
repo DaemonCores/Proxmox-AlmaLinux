@@ -263,7 +263,7 @@ dnf install -y zfs-dkms zfs
 
 | Task | Details |
 |---|---|
-| Create repo structure | `proxmox-alma/` with `packages/`, `scripts/`, `docker/`, `.github/workflows/` |
+| Create repo structure | `packages/`, `scripts/`, `.github/workflows/` |
 | Copy reusable scripts | `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` from `astralemu-packages/scripts/` |
 | Create AlmaLinux dep-map | Extend `dep-map.conf` with Proxmox-specific Debian→RPM mappings (Perl modules, corosync, libqb, fuse3, etc.) |
 | Create `packages.yml` | Based on the dependency graph in §4.1, list all packages with `id`, `version_source`, `build_time`, `depends_on` |
@@ -414,7 +414,6 @@ dnf install -y zfs-dkms zfs
 ## 9. Immediate Next Steps
 
 1. **Fork/clone reference repositories** — Clone `proxmox-nixos` and have `astralemu-packages` available locally for reference.
-2. **Create new repo** — `proxmox-alma` with the directory structure from §4.2.
 3. **Copy reusable scripts** — `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` from `astralemu-packages/scripts/`.
 4. **Extend `dep-map.conf`** — Add Proxmox-specific Debian→RPM mappings for Perl modules, corosync, libqb, fuse3, etc.
 5. **Write first `packages.yml`** — Start with Layer 0 Perl leaf packages (no dependencies, easy to validate).

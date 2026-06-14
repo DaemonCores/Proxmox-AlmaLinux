@@ -1,0 +1,390 @@
+# Proxmox VE on AlmaLinux — Package build definitions
+#
+# Each entry defines a PVE package to build in the CI pipeline.
+# The workflow iterates over this list and auto-assigns build waves
+# based on depends_on topology and layer ordering.
+#
+# To add a new package:
+#   1. Add an entry below with a unique id
+#   2. Create packages/<id>/build.sh with the build logic
+#   3. Commit and push — the CI will build it automatically
+#
+# Fields:
+#   id              — Unique identifier (must match packages/<id>/build.sh)
+#   repo            — Git repository URL on git.proxmox.com
+#   version_source  — How to get the version: git (fetch from git.proxmox.com) | hash-only
+#   build_time      — Estimated build time in minutes (for wave scheduling info)
+#   depends_on      — List of package ids that must build before this one (optional)
+#   artifact_type   — Output type: pkg (default, .pkg.tar intermediate)
+#   layer           — Build layer (0–7) from the porting plan dependency graph
+
+packages:
+  # ============================================================================
+  # Layer 0 — Perl Leaf Modules (no PVE deps)
+  # ============================================================================
+  # CPAN-sourced Perl modules with no PVE-internal dependencies.
+  # These are the first packages built and are consumed by Layer 2+.
+
+  - id: perl-authen-pam
+    repo: "git://git.proxmox.com/git/perl-authen-pam.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-crypt-openssl-random
+    repo: "git://git.proxmox.com/git/perl-crypt-openssl-random.git"
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-crypt-openssl-rsa
+    repo: "git://git.proxmox.com/git/perl-crypt-openssl-rsa.git"
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-data-dumper
+    repo: "git://git.proxmox.com/git/perl-data-dumper.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-digest-sha
+    repo: "git://git.proxmox.com/git/perl-digest-sha.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-file-readbackwards
+    repo: "git://git.proxmox.com/git/perl-file-readbackwards.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-filesys-df
+    repo: "git://git.proxmox.com/git/perl-filesys-df.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-http-daemon
+    repo: "git://git.proxmox.com/git/perl-http-daemon.git"
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-json
+    repo: "git://git.proxmox.com/git/perl-json.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-linux-inotify2
+    repo: "git://git.proxmox.com/git/perl-linux-inotify2.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-mail-spamassassin
+    repo: "git://git.proxmox.com/git/perl-mail-spamassassin.git"
+    version_source: git
+    build_time: 5
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-net-dns
+    repo: "git://git.proxmox.com/git/perl-net-dns.git"
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-net-ip
+    repo: "git://git.proxmox.com/git/perl-net-ip.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-net-ssleay
+    repo: "git://git.proxmox.com/git/perl-net-ssleay.git"
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-proxmox-acme
+    repo: "git://git.proxmox.com/git/perl-proxmox-acme.git"
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-uri
+    repo: "git://git.proxmox.com/git/perl-uri.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-www-perl
+    repo: "git://git.proxmox.com/git/perl-www-perl.git"
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-xml-parser
+    repo: "git://git.proxmox.com/git/perl-xml-parser.git"
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  # ============================================================================
+  # Layer 1 — Helper Libraries (no PVE deps)
+  # ============================================================================
+  # Standalone libraries and tools with no PVE-internal dependencies.
+  # These are consumed by Layer 2+ packages.
+
+  - id: proxmox-backup-qemu
+    repo: "git://git.proxmox.com/git/proxmox-backup-qemu.git"
+    version_source: git
+    build_time: 10
+    artifact_type: pkg
+    layer: 1
+
+  - id: proxmox-i18n
+    repo: "git://git.proxmox.com/git/proxmox-i18n.git"
+    version_source: git
+    build_time: 5
+    artifact_type: pkg
+    layer: 1
+
+  - id: proxmox-perl-rs
+    repo: "git://git.proxmox.com/git/proxmox-perl-rs.git"
+    version_source: git
+    build_time: 15
+    artifact_type: pkg
+    layer: 1
+
+  - id: proxmox-rs
+    repo: "git://git.proxmox.com/git/proxmox-rs.git"
+    version_source: git
+    build_time: 15
+    artifact_type: pkg
+    layer: 1
+
+  - id: proxmox-widget-toolkit
+    repo: "git://git.proxmox.com/git/proxmox-widget-toolkit.git"
+    version_source: git
+    build_time: 5
+    artifact_type: pkg
+    layer: 1
+
+  - id: pve-access-control
+    repo: "git://git.proxmox.com/git/pve-access-control.git"
+    version_source: git
+    build_time: 10
+    artifact_type: pkg
+    layer: 1
+
+  - id: pve-apiclient
+    repo: "git://git.proxmox.com/git/pve-apiclient.git"
+    version_source: git
+    build_time: 5
+    artifact_type: pkg
+    layer: 1
+
+  - id: pve-docs
+    repo: "git://git.proxmox.com/git/pve-docs.git"
+    version_source: git
+    build_time: 8
+    artifact_type: pkg
+    layer: 1
+
+  - id: pve-edk2-firmware
+    repo: "git://git.proxmox.com/git/pve-edk2-firmware.git"
+    version_source: git
+    build_time: 30
+    artifact_type: pkg
+    layer: 1
+
+  # ============================================================================
+  # Layer 2 — Foundation (depends on Layer 0 + 1)
+  # ============================================================================
+  # Core PVE Perl libraries. pve-common is the most critical package
+  # with the highest dependency count (25+ CPAN modules).
+
+  - id: pve-common
+    repo: "git://git.proxmox.com/git/pve-common.git"
+    version_source: git
+    build_time: 15
+    artifact_type: pkg
+    layer: 2
+    depends_on:
+      - perl-authen-pam
+      - perl-crypt-openssl-random
+      - perl-crypt-openssl-rsa
+      - perl-data-dumper
+      - perl-digest-sha
+      - perl-file-readbackwards
+      - perl-filesys-df
+      - perl-http-daemon
+      - perl-json
+      - perl-linux-inotify2
+      - perl-mail-spamassassin
+      - perl-net-dns
+      - perl-net-ip
+      - perl-net-ssleay
+      - perl-uri
+      - perl-www-perl
+      - perl-xml-parser
+      - proxmox-backup-qemu
+
+  - id: pve-guest-common
+    repo: "git://git.proxmox.com/git/pve-guest-common.git"
+    version_source: git
+    build_time: 8
+    artifact_type: pkg
+    layer: 2
+    depends_on:
+      - pve-common
+
+  # ============================================================================
+  # Layer 3 — Cluster & Network (depends on Layer 2)
+  # ============================================================================
+
+  - id: pve-cluster
+    repo: "git://git.proxmox.com/git/pve-cluster.git"
+    version_source: git
+    build_time: 20
+    artifact_type: pkg
+    layer: 3
+    depends_on:
+      - pve-access-control
+      - pve-apiclient
+      - pve-common
+      - proxmox-perl-rs
+
+  - id: pve-http-server
+    repo: "git://git.proxmox.com/git/pve-http-server.git"
+    version_source: git
+    build_time: 8
+    artifact_type: pkg
+    layer: 3
+    depends_on:
+      - pve-common
+
+  - id: pve-network
+    repo: "git://git.proxmox.com/git/pve-network.git"
+    version_source: git
+    build_time: 8
+    artifact_type: pkg
+    layer: 3
+    depends_on:
+      - pve-common
+
+  # ============================================================================
+  # Layer 4 — Storage, Compute & Services (depends on Layer 3)
+  # ============================================================================
+
+  - id: pve-storage
+    repo: "git://git.proxmox.com/git/pve-storage.git"
+    version_source: git
+    build_time: 12
+    artifact_type: pkg
+    layer: 4
+    depends_on:
+      - pve-cluster
+      - pve-common
+
+  - id: pve-firewall
+    repo: "git://git.proxmox.com/git/pve-firewall.git"
+    version_source: git
+    build_time: 10
+    artifact_type: pkg
+    layer: 4
+    depends_on:
+      - pve-access-control
+      - pve-cluster
+      - pve-common
+      - pve-network
+
+  - id: pve-ha-manager
+    repo: "git://git.proxmox.com/git/pve-ha-manager.git"
+    version_source: git
+    build_time: 10
+    artifact_type: pkg
+    layer: 4
+    depends_on:
+      - pve-cluster
+      - pve-common
+
+  - id: pve-qemu
+    repo: "git://git.proxmox.com/git/pve-qemu.git"
+    version_source: git
+    build_time: 120
+    artifact_type: pkg
+    layer: 4
+    depends_on:
+      - proxmox-backup-qemu
+
+  # ============================================================================
+  # Layer 5 — Server & Manager (depends on all above)
+  # ============================================================================
+  # The final packages — highest dependency counts. pve-manager serves
+  # the PVE web UI on port 8006 via pveproxy.
+
+  - id: pve-container
+    repo: "git://git.proxmox.com/git/pve-container.git"
+    version_source: git
+    build_time: 10
+    artifact_type: pkg
+    layer: 5
+    depends_on:
+      - pve-common
+      - pve-guest-common
+      - pve-storage
+
+  - id: pve-qemu-server
+    repo: "git://git.proxmox.com/git/pve-qemu-server.git"
+    version_source: git
+    build_time: 15
+    artifact_type: pkg
+    layer: 5
+    depends_on:
+      - pve-common
+      - pve-guest-common
+      - pve-qemu
+      - pve-storage
+
+  - id: pve-manager
+    repo: "git://git.proxmox.com/git/pve-manager.git"
+    version_source: git
+    build_time: 30
+    artifact_type: pkg
+    layer: 5
+    depends_on:
+      - pve-cluster
+      - pve-container
+      - pve-docs
+      - pve-firewall
+      - pve-guest-common
+      - pve-ha-manager
+      - pve-http-server
+      - pve-network
+      - pve-qemu-server
+      - pve-storage
+      - proxmox-i18n
+      - proxmox-widget-toolkit
