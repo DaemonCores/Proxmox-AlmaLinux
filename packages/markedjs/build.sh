@@ -1,78 +1,43 @@
 #!/bin/bash
-# build.sh — markedjs (Layer 1: JavaScript library, no PVE deps)
-#
-# Marked — Markdown parser and compiler for JavaScript.
-# Used by proxmox-widget-toolkit and PVE for rendering Markdown docs.
-# NPM package, installed as static JS assets.
-#
-# Adapted from proxmox-nixos:
-#   - Nix: buildNpmPackage with npmDepsHash
-#   - AlmaLinux: download pre-built from npm or GitHub release
-#
-# Environment (injected by build-chain.yml):
-#   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
-#   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
-set -euo pipefail
+# Package: markedjs
+# Layer: 1
+# Type: node-hash
 
 PKG_NAME="markedjs"
+BUILD_TYPE="node-hash"
+PKG_DESCRIPTION="Marked — Markdown parser and compiler for JavaScript"
 MARKED_VERSION="17.0.4"
-MARKED_URL="https://github.com/markedjs/marked/releases/download/v${MARKED_VERSION}/marked.min.js"
+MARKED_URL="https://github.com/markedjs/marked/releases/download/v17.0.4/marked.min.js"
+MARKED_FALLBACK_URL="https://cdn.jsdelivr.net/npm/marked@17.0.4/marked.min.js"
+DOWNLOAD_URL="https://github.com/markedjs/marked/releases/download/v17.0.4/marked.min.js"
+DOWNLOAD_VERSION="17.0.4"
+DOWNLOAD_FALLBACK_URL="https://cdn.jsdelivr.net/npm/marked@17.0.4/marked.min.js"
 
-# ------------------------------------------------------------------
-# 1. Download pre-built marked.min.js
-# ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Downloading marked.js ==="
-WORKDIR="/tmp/src/${PKG_NAME}"
-rm -rf "$WORKDIR"
-mkdir -p "$WORKDIR"
-curl -L -o "$WORKDIR/marked.min.js" "$MARKED_URL" || {
-    # Fallback: download from npm registry
-    echo "=== [$PKG_NAME] GitHub release failed, trying npm ==="
-    curl -L -o "$WORKDIR/marked.min.js" "https://cdn.jsdelivr.net/npm/marked@${MARKED_VERSION}/marked.min.js" || {
-        echo "ERROR: Failed to download marked.js"
-        exit 1
-    }
+# Override: download pre-built marked.min.js
+fetch_source_download() {
+    echo "=== [$PKG_NAME] Downloading marked.js ==="
+    WORKDIR="/tmp/src/${PKG_NAME}"
+    rm -rf "$WORKDIR"
+    mkdir -p "$WORKDIR"
+    if ! curl -L -o "$WORKDIR/marked.min.js" "$MARKED_URL"; then
+        echo "=== [$PKG_NAME] GitHub release failed, trying npm ==="
+        if ! curl -L -o "$WORKDIR/marked.min.js" "$MARKED_FALLBACK_URL"; then
+            echo "ERROR: Failed to download marked.js"
+            exit 1
+        fi
+    fi
 }
 
-# ------------------------------------------------------------------
-# 2. Build (no compilation — pre-built JS)
-# ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Building (static JS) ==="
+# Override: install marked.js to staging
+install_override() {
+    mkdir -p "$STAGE/root/usr/share/javascript/markedjs" "$STAGE/meta"
 
-# ------------------------------------------------------------------
-# 3. Install to staging root
-# ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Installing to staging root ==="
-STAGE="/tmp/pkg/${PKG_NAME}"
-rm -rf "$STAGE"
-mkdir -p "$STAGE/root/usr/share/javascript/markedjs" "$STAGE/meta"
+    cp "$WORKDIR/marked.min.js" "$STAGE/root/usr/share/javascript/markedjs/marked.js"
+}
 
-cp "$WORKDIR/marked.min.js" "$STAGE/root/usr/share/javascript/markedjs/marked.js"
+# Override: version from download URL
+detect_version() { echo "${MARKED_VERSION}+${SHORT:-git}"; }
 
-# ------------------------------------------------------------------
-# 4. Determine version
-# ------------------------------------------------------------------
-PKG_VERSION="${MARKED_VERSION}+${SHORT:-git}"
+source ../../scripts/build-template.sh
 
-# ------------------------------------------------------------------
-# 5. Write meta/ files
-# ------------------------------------------------------------------
-echo "$PKG_NAME"               > "$STAGE/meta/name"
-echo "$PKG_VERSION"            > "$STAGE/meta/version"
-echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Marked — Markdown parser and compiler for JavaScript" > "$STAGE/meta/description"
-echo "Proxmox"                  > "$STAGE/meta/maintainer"
-echo "rpm"                      > "$STAGE/meta/source_format"
-
-cat > "$STAGE/meta/depends" << 'EOF'
-EOF
-
-# ------------------------------------------------------------------
-# 6. Package as .pkg.tar
-# ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Creating .pkg.tar ==="
-cd "$STAGE"
-tar cf "/workspace/${PKG_NAME}_${PKG_VERSION}_${TARGET_ARCH:-x86_64}.pkg.tar" meta root
-
-echo "=== [$PKG_NAME] Done ==="
-echo "Artifact: /workspace/${PKG_NAME}_${PKG_VERSION}_${TARGET_ARCH:-x86_64}.pkg.tar"
+full_build

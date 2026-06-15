@@ -82,6 +82,11 @@ setup_env() {
     CARGO_BIN="${CARGO_BIN:-}"
     CPAN_VERSION="${CPAN_VERSION:-}"
     NODE_BUILD_DIR="${NODE_BUILD_DIR:-}"
+    CLONE_RECURSIVE="${CLONE_RECURSIVE:-}"
+    DOWNLOAD_URL="${DOWNLOAD_URL:-}"
+    DOWNLOAD_VERSION="${DOWNLOAD_VERSION:-}"
+    DOWNLOAD_EXTRACT_DIR="${DOWNLOAD_EXTRACT_DIR:-}"
+    PKG_DEPENDS="${PKG_DEPENDS:-}"
 
     # Clean and create directories
     rm -rf "$WORKDIR" "$STAGE"
@@ -90,14 +95,18 @@ setup_env() {
     # Set up log redirection
     exec > >(tee -a "$WORKDIR/build.log") 2>&1
 
-    # Detect build type based on REPO_URL
-    if [[ -n "${REPO_URL:-}" && "${REPO_URL}" =~ cpan\.org ]]; then
-        BUILD_TYPE="perl"
-        echo "=== [$PKG_NAME] Detected build type: perl (CPAN source) ==="
+    # Detect build type — only if not already set explicitly by the stub
+    if [[ -z "${BUILD_TYPE:-}" ]]; then
+        if [[ -n "${REPO_URL:-}" && "${REPO_URL}" =~ cpan\.org ]]; then
+            BUILD_TYPE="perl"
+            echo "=== [$PKG_NAME] Detected build type: perl (CPAN source) ==="
+        else
+            # Will be refined after fetch_source when source tree is available
+            BUILD_TYPE="auto"
+            echo "=== [$PKG_NAME] Build type: auto-detect (will refine after source fetch) ==="
+        fi
     else
-        # Will be refined after fetch_source when source tree is available
-        BUILD_TYPE="auto"
-        echo "=== [$PKG_NAME] Build type: auto-detect (will refine after source fetch) ==="
+        echo "=== [$PKG_NAME] Build type: $BUILD_TYPE (explicit) ==="
     fi
 
     echo "=== [$PKG_NAME] Environment setup complete ==="
@@ -194,7 +203,11 @@ fetch_source() {
         # Git clone from Proxmox or git:// URL
         echo "  Source type: git clone"
         rm -rf "$WORKDIR"
-        git clone --depth=1 "$REPO_URL" "$WORKDIR"
+        local clone_flags="--depth=1"
+        if [[ "${CLONE_RECURSIVE:-0}" == "1" ]]; then
+            clone_flags="$clone_flags --recursive"
+        fi
+        git clone $clone_flags "$REPO_URL" "$WORKDIR"
         cd "$WORKDIR"
 
         # Checkout specific version if provided
@@ -204,8 +217,10 @@ fetch_source() {
                 || true
         fi
 
-        # Initialize submodules if any
-        git submodule update --init --recursive 2>/dev/null || true
+        # Initialize submodules if not already cloned recursively
+        if [[ "${CLONE_RECURSIVE:-0}" != "1" ]]; then
+            git submodule update --init --recursive 2>/dev/null || true
+        fi
 
     else
         # Generic tarball download (GitHub releases, etc.)
@@ -807,58 +822,381 @@ cleanup() {
 }
 
 # ============================================================================
+# 11. build_docs — Build documentation (asciidoc/pandoc)
+# ============================================================================
+# Handles documentation packages that use make for generation.
+# Calls pre_build_hook if defined by the stub.
+build_docs() {
+    echo "=== [$PKG_NAME] Building (docs) ==="
+
+    local build_dir="$WORKDIR"
+    if [[ -n "$BUILD_SUBDIR" ]]; then
+        build_dir="$WORKDIR/$BUILD_SUBDIR"
+    fi
+    cd "$build_dir"
+
+    # Call pre-build hook if defined (for patching Makefiles etc.)
+    if declare -f pre_build_hook >/dev/null 2>&1; then
+        pre_build_hook
+    fi
+
+    make -j"$(nproc)" DOCRELEASE="${PKG_VERSION:-dev}" || true
+
+    echo "=== [$PKG_NAME] Docs build complete ==="
+}
+
+# Install documentation to staging root
+install_docs() {
+    echo "=== [$PKG_NAME] Installing docs to staging root ==="
+
+    local build_dir="$WORKDIR"
+    if [[ -n "$BUILD_SUBDIR" ]]; then
+        build_dir="$WORKDIR/$BUILD_SUBDIR"
+    fi
+    cd "$build_dir"
+
+    make install DESTDIR="$STAGE/root" DOCRELEASE="${PKG_VERSION:-dev}" || true
+
+    echo "=== [$PKG_NAME] Docs install complete ==="
+}
+
+# ============================================================================
+# 12. build_i18n — Build internationalization files (gettext)
+# ============================================================================
+build_i18n() {
+    echo "=== [$PKG_NAME] Building (i18n) ==="
+
+    cd "$WORKDIR"
+
+    # Call pre-build hook if defined (for patching Makefiles etc.)
+    if declare -f pre_build_hook >/dev/null 2>&1; then
+        pre_build_hook
+    fi
+
+    make -j"$(nproc)" || true
+
+    echo "=== [$PKG_NAME] i18n build complete ==="
+}
+
+# Install i18n to staging root
+install_i18n() {
+    echo "=== [$PKG_NAME] Installing i18n to staging root ==="
+
+    cd "$WORKDIR"
+    make install DESTDIR="$STAGE/root" || true
+
+    echo "=== [$PKG_NAME] i18n install complete ==="
+}
+
+# ============================================================================
+# 13. build_firmware — Build EDK2 UEFI firmware
+# ============================================================================
+# Complex build: uses EDK2 build system with cross-compilers.
+# Calls pre_build_hook for Makefile patching.
+build_firmware() {
+    echo "=== [$PKG_NAME] Building (firmware) ==="
+
+    cd "$WORKDIR"
+
+    # Call pre-build hook if defined (for patching build files etc.)
+    if declare -f pre_build_hook >/dev/null 2>&1; then
+        pre_build_hook
+    fi
+
+    # Disable hardening flags that conflict with EDK2 build
+    export CFLAGS="${CFLAGS:-} -Wno-format -Wno-error=format-security -fno-trivial-auto-var-init=zero"
+
+    if [[ -f "$WORKDIR/debian/rules" ]]; then
+        if [[ -d "$WORKDIR/edk2" ]]; then
+            pushd "$WORKDIR/edk2"
+            make -f "$WORKDIR/debian/rules" override_dh_auto_build || true
+            popd
+        else
+            make -f "$WORKDIR/debian/rules" override_dh_auto_build || true
+        fi
+    fi
+
+    echo "=== [$PKG_NAME] Firmware build complete ==="
+}
+
+# Install firmware to staging root
+# Calls install_override if defined by the stub for custom install logic.
+install_firmware() {
+    echo "=== [$PKG_NAME] Installing firmware to staging root ==="
+
+    # Call install_override if defined by the stub
+    if declare -f install_override >/dev/null 2>&1; then
+        install_override
+    else
+        mkdir -p "$STAGE/root/usr/share/$PKG_NAME" "$STAGE/meta"
+        # Copy firmware files per *.install files if debian/ exists
+        if [[ -d "$WORKDIR/debian" ]]; then
+            for f in "$WORKDIR"/debian/*.install; do
+                [[ -f "$f" ]] || continue
+                while IFS= read -r line; do
+                    read -ra paths <<< "$line"
+                    dest="$STAGE/root/${paths[-1]}"
+                    mkdir -p "$dest"
+                    for src in "${paths[@]::${#paths[@]}-1}"; do
+                        for found in "$WORKDIR"/$src "$WORKDIR"/edk2/$src; do
+                            if [[ -e "$found" ]]; then
+                                cp $found "$dest" 2>/dev/null || true
+                            fi
+                        done
+                    done
+                done < "$f"
+            done
+        fi
+    fi
+
+    echo "=== [$PKG_NAME] Firmware install complete ==="
+}
+
+# ============================================================================
+# 14. build_c_patched — Build C with Makefile patching
+# ============================================================================
+# For C packages that need Makefile patching before build.
+# Calls pre_build_hook for patching.
+build_c_patched() {
+    echo "=== [$PKG_NAME] Building (C with patches) ==="
+
+    cd "$WORKDIR"
+
+    # Call pre-build hook if defined (for Makefile patching etc.)
+    if declare -f pre_build_hook >/dev/null 2>&1; then
+        pre_build_hook
+    fi
+
+    make -j"$(nproc)" || true
+
+    echo "=== [$PKG_NAME] C build complete ==="
+}
+
+# Install C_patched to staging root
+# Calls install_override if defined by the stub.
+install_c_patched() {
+    echo "=== [$PKG_NAME] Installing C to staging root ==="
+
+    # Call install_override if defined by the stub
+    if declare -f install_override >/dev/null 2>&1; then
+        install_override
+    else
+        make install DESTDIR="$STAGE/root" PREFIX=/usr || true
+    fi
+
+    echo "=== [$PKG_NAME] C install complete ==="
+}
+
+# ============================================================================
+# 15. install_font — Install font files to staging root
+# ============================================================================
+install_font() {
+    echo "=== [$PKG_NAME] Installing font files to staging root ==="
+
+    mkdir -p "$STAGE/root/usr/share/$PKG_NAME/css" "$STAGE/root/usr/share/$PKG_NAME/fonts"
+
+    # Call install_override if defined by the stub
+    if declare -f install_override >/dev/null 2>&1; then
+        install_override
+    fi
+
+    echo "=== [$PKG_NAME] Font install complete ==="
+}
+
+# ============================================================================
+# 16. install_generic — Install for hash-only/static packages
+# ============================================================================
+# Used for packages where files are simply copied to staging.
+# Calls install_override if defined by the stub.
+install_generic() {
+    echo "=== [$PKG_NAME] Installing (generic) ==="
+
+    mkdir -p "$STAGE/root" "$STAGE/meta"
+
+    # Call install_override if defined by the stub
+    if declare -f install_override >/dev/null 2>&1; then
+        install_override
+    fi
+
+    echo "=== [$PKG_NAME] Generic install complete ==="
+}
+
+# ============================================================================
+# 17. fetch_source_download — Download tarball (for hash-only packages)
+# ============================================================================
+# Alternative to fetch_source for packages that download a tarball
+# instead of git clone. Used by c-hash, font-hash, node-hash types.
+# Requires DOWNLOAD_URL and optionally DOWNLOAD_VERSION to be set.
+fetch_source_download() {
+    echo "=== [$PKG_NAME] Downloading source ==="
+    WORKDIR="/tmp/src/${PKG_NAME}"
+    rm -rf "$WORKDIR"
+    mkdir -p "$WORKDIR"
+
+    if [[ -z "${DOWNLOAD_URL:-}" ]]; then
+        echo "ERROR: DOWNLOAD_URL must be set for fetch_source_download" >&2
+        exit 1
+    fi
+
+    curl -L -o "/tmp/${PKG_NAME}.tar.gz" "$DOWNLOAD_URL"
+
+    # Extract
+    tar xzf "/tmp/${PKG_NAME}.tar.gz" -C "/tmp/src"
+
+    # Find and move to expected WORKDIR
+    if [[ -n "${DOWNLOAD_VERSION:-}" ]]; then
+        mv "/tmp/src/${DOWNLOAD_EXTRACT_DIR:-${PKG_NAME}-${DOWNLOAD_VERSION}}" "$WORKDIR" 2>/dev/null || true
+    else
+        local extracted_dir
+        extracted_dir=$(find /tmp/src -maxdepth 1 -type d -newer "/tmp/${PKG_NAME}.tar.gz" | head -1)
+        if [[ -n "$extracted_dir" && "$extracted_dir" != "$WORKDIR" ]]; then
+            rm -rf "$WORKDIR"
+            mv "$extracted_dir" "$WORKDIR"
+        fi
+    fi
+    cd "$WORKDIR"
+
+    # Refine build type now that source is available
+    if [[ "$BUILD_TYPE" == "auto" ]]; then
+        refine_build_type "$WORKDIR"
+    fi
+
+    echo "=== [$PKG_NAME] Source downloaded successfully ==="
+}
+
+# ============================================================================
 # Convenience function: full_build — run the entire pipeline
 # ============================================================================
 # Runs the standard 6-step pipeline based on BUILD_TYPE:
 #   1. setup_env
-#   2. fetch_source
+#   2. fetch_source (or fetch_source_download for hash-only)
 #   3. Build (dispatches based on BUILD_TYPE)
 #   4. Install (dispatches based on BUILD_TYPE)
 #   5. package_rpm
 #   6. cleanup
 #
-# Individual build.sh files can override any step by defining the
-# corresponding function before calling full_build, or by calling
-# individual steps manually.
+# Individual build.sh files can override any step by:
+#   - Defining pre_build_hook() — called before the build step
+#   - Defining install_override() — replaces the default install step
+#   - Defining build_override() — replaces the default build step
+#   - Or by calling individual steps manually instead of full_build
+#
+# BUILD_TYPE values:
+#   Layer 0: perl, rust, c, node, python, patch, static (auto-detected)
+#   Layer 1: rust-workspace, rust-perl, rust-submodules, node (with install_override),
+#            node-hash, font, font-hash, c-patched, c-hash, docs, i18n,
+#            firmware, generic, perl-git
 full_build() {
     setup_env
-    fetch_source
 
-    # Dispatch build + install based on detected BUILD_TYPE
+    # Choose fetch method based on BUILD_TYPE
     case "$BUILD_TYPE" in
-        perl)
-            build_perl
-            install_perl
-            ;;
-        rust)
-            build_rust
-            install_rust
-            ;;
-        c)
-            build_c
-            install_c
-            ;;
-        node)
-            build_node
-            install_node
-            ;;
-        python)
-            build_python
-            # Python install is done in build_python (pip install --target)
-            ;;
-        patch)
-            # Patches only, no build step
-            apply_debian_patches
-            ;;
-        static)
-            # No build step for static assets
-            echo "=== [$PKG_NAME] No build step (static assets) ==="
+        node-hash|font-hash|c-hash|generic)
+            fetch_source_download
             ;;
         *)
-            echo "ERROR: Unknown BUILD_TYPE: $BUILD_TYPE" >&2
-            exit 1
+            fetch_source
             ;;
     esac
+
+    # Call build step — use override if defined, otherwise dispatch by BUILD_TYPE
+    if declare -f build_override >/dev/null 2>&1; then
+        build_override
+    else
+        case "$BUILD_TYPE" in
+            perl|perl-git)
+                build_perl
+                ;;
+            rust|rust-workspace|rust-submodules)
+                build_rust
+                ;;
+            rust-perl)
+                # Rust build + Perl wrapper make — build_override in stub does the make step
+                build_rust
+                ;;
+            c|c-patched|c-hash)
+                build_c
+                ;;
+            node|node-hash)
+                build_node
+                ;;
+            python)
+                build_python
+                ;;
+            docs)
+                build_docs
+                ;;
+            i18n)
+                build_i18n
+                ;;
+            firmware)
+                build_firmware
+                ;;
+            font|font-hash)
+                # No build step for font packages
+                echo "=== [$PKG_NAME] No build step (font assets) ==="
+                ;;
+            patch)
+                apply_debian_patches
+                ;;
+            static|generic)
+                echo "=== [$PKG_NAME] No build step (static assets) ==="
+                ;;
+            *)
+                echo "ERROR: Unknown BUILD_TYPE: $BUILD_TYPE" >&2
+                exit 1
+                ;;
+        esac
+    fi
+
+    # Call install step — use override if defined, otherwise dispatch by BUILD_TYPE
+    if declare -f install_override >/dev/null 2>&1; then
+        install_override
+    else
+        case "$BUILD_TYPE" in
+            perl|perl-git)
+                install_perl
+                ;;
+            rust|rust-workspace|rust-submodules)
+                install_rust
+                ;;
+            rust-perl)
+                # Rust-Perl hybrid: custom install in install_override
+                echo "=== [$PKG_NAME] Rust-Perl install (use install_override) ==="
+                ;;
+            c|c-hash)
+                install_c
+                ;;
+            c-patched)
+                install_c_patched
+                ;;
+            node|node-hash)
+                install_node
+                ;;
+            python)
+                # Python install is done in build_python (pip install --target)
+                ;;
+            docs)
+                install_docs
+                ;;
+            i18n)
+                install_i18n
+                ;;
+            firmware)
+                install_firmware
+                ;;
+            font|font-hash)
+                install_font
+                ;;
+            static|generic|patch)
+                install_generic
+                ;;
+            *)
+                echo "ERROR: Unknown BUILD_TYPE for install: $BUILD_TYPE" >&2
+                exit 1
+                ;;
+        esac
+    fi
 
     package_rpm
     cleanup
