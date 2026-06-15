@@ -171,10 +171,13 @@ jobs:
             # Enable HighAvailability repo for corosynclib-devel, libqb-devel
             dnf config-manager --set-enabled highavailability
 
+            # Enable NFV OpenvSwitch repo (openvswitch package is not in base AlmaLinux 10)
+            dnf install -y centos-release-nfv-openvswitch
+
             # PVE system dependencies
             dnf install -y \
               corosynclib-devel libqb-devel fuse3-devel \
-              openvswitch lvm2 device-mapper-multipath \
+              openvswitch3.5 lvm2 device-mapper-multipath \
               iscsi-initiator-utils targetcli nfs-utils rpcbind \
               smartmontools qemu-kvm qemu-img libvirt-client \
               bridge-utils dnsmasq iproute iptables ipset \

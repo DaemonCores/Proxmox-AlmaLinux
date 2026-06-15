@@ -3,9 +3,10 @@
 # The bootc image lives in /Dockerfile — this file is for PVE package compilation only.
 FROM almalinux:10
 
-# --- EPEL repository + HighAvailability repo (corosynclib-devel, libqb-devel) ---
+# --- EPEL repository + HighAvailability repo (corosynclib-devel, libqb-devel) + NFV OpenvSwitch repo ---
 RUN dnf install -y epel-release \
     && dnf config-manager --set-enabled highavailability \
+    && dnf install -y centos-release-nfv-openvswitch \
     && dnf clean all
 
 # --- Base tools ---
@@ -49,7 +50,7 @@ RUN dnf install -y \
         corosynclib-devel \
         libqb-devel \
         fuse3-devel \
-        openvswitch \
+        openvswitch3.5 \
         lvm2 \
         device-mapper-multipath \
         iscsi-initiator-utils \

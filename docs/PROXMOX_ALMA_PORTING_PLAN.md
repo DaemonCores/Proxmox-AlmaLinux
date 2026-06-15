@@ -307,7 +307,7 @@ dnf install -y zfs-dkms zfs
 **Critical challenge**: `pve-common` has the most extensive path patching of any PVE package. The `postFixup` in `proxmox-nixos` shows the following substitutions must be applied:
 - `/usr/share/zoneinfo` → AlmaLinux timezone path
 - `/usr/bin/` → `/usr/bin/` (may be no-op on EL)
-- `ovs-vsctl` → full path to `openvswitch`
+- `ovs-vsctl` → full path to `openvswitch` (via `openvswitch3.5` from CentOS NFV SIG repo; `openvswitch` package does not exist in AlmaLinux 10 base repos)
 - `ENV{'PATH'}` references must be removed or wrapped
 - The `h2ph` tool (included in the `perl` package) must convert C syscall headers to Perl constants during the build process.
 
@@ -481,7 +481,7 @@ Complete list of packages from `pkgs/default.nix`, with dependencies and purpose
 
 | Package | Purpose | PVE Dependencies | Key System Dependencies |
 |---|---|---|---|
-| `pve-common` | Common Perl library for all PVE components | 25+ CPAN modules, `proxmox-backup-client` | `iproute2`, `openvswitch`, `pciutils`, `usbutils`, `systemd`, `tzdata` |
+| `pve-common` | Common Perl library for all PVE components | 25+ CPAN modules, `proxmox-backup-client` | `iproute2`, `openvswitch3.5` (via centos-release-nfv-openvswitch), `pciutils`, `usbutils`, `systemd`, `tzdata` |
 | `pve-rs` | Rust component (bindings) | `pve-common` | Cargo/Rust toolchain |
 
 ### Layer 4 — PVE Core Services
@@ -501,7 +501,7 @@ Complete list of packages from `pkgs/default.nix`, with dependencies and purpose
 | `pve-firewall` | Host/guest firewall | `pve-access-control`, `pve-cluster`, `pve-network`, `pve-rs` | `iptables`, `ipset`, `libnetfilter_conntrack` |
 | `pve-guest-common` | Guest (VM/CT) common code | `pve-common` | — |
 | `pve-ha-manager` | High availability manager | `pve-cluster`, `pve-common` | `corosync` |
-| `pve-network` | Network management (SDN) | `pve-common` | `openvswitch`, `iproute2` |
+| `pve-network` | Network management (SDN) | `pve-common` | `openvswitch3.5` (via centos-release-nfv-openvswitch), `iproute2` |
 
 ### Layer 6 — PVE Compute
 
@@ -542,7 +542,7 @@ Known hardcoded paths from `proxmox-nixos` `postFixup` sed commands, to be adapt
 | Debian Path | AlmaLinux Target | Context |
 |---|---|---|
 | `/usr/share/zoneinfo` | `/usr/share/zoneinfo` | Same on EL — no change needed |
-| `ovs-vsctl` | `/usr/bin/ovs-vsctl` | Open vSwitch CLI path |
+| `ovs-vsctl` | `/usr/bin/ovs-vsctl` | Open vSwitch CLI path (provided by `openvswitch3.5` from CentOS NFV SIG repo) |
 | `ENV{'PATH'}` | Remove or wrap | PATH pollution prevention |
 | `/usr/bin/`, `/usr/sbin/`, `/sbin/` | `/usr/bin/` | EL merges sbin into bin |
 
