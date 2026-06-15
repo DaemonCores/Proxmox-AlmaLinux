@@ -44,7 +44,7 @@ pkg_count=$(echo "$PKGS_JSON" | jq 'length')
 HASHES="{}"
 for (( i=0; i<pkg_count; i++ )); do
   pkg_id=$(echo "$PKGS_JSON" | jq -r ".[$i].id")
-  base_dir=$(echo "$PKGS_JSON" | jq -r '._base_dir // "packages"')
+  base_dir=$(echo "$PKGS_JSON" | jq -r ".[$i]._base_dir // \"packages\"")
   script_path="$ROOT_DIR/$base_dir/$pkg_id/build.sh"
   config_entry=$(echo "$PKGS_JSON" | jq -c ".[$i]")
   if [[ -f "$script_path" ]]; then
