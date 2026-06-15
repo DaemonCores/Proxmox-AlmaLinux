@@ -3,8 +3,9 @@
 # The bootc image lives in /Dockerfile — this file is for PVE package compilation only.
 FROM almalinux:10
 
-# --- EPEL repository ---
+# --- EPEL repository + HighAvailability repo (corosynclib-devel, libqb-devel) ---
 RUN dnf install -y epel-release \
+    && dnf config-manager --set-enabled HighAvailability \
     && dnf clean all
 
 # --- Base tools ---
@@ -45,7 +46,7 @@ RUN dnf install -y \
 
 # --- Proxmox VE system dependencies ---
 RUN dnf install -y \
-        corosync-devel \
+        corosynclib-devel \
         libqb-devel \
         fuse3-devel \
         openvswitch \

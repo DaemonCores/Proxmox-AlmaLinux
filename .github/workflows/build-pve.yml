@@ -168,9 +168,12 @@ jobs:
             dnf install -y \
               perl perl-devel perl-ExtUtils-Embed perl-CPAN
 
+            # Enable HighAvailability repo for corosynclib-devel, libqb-devel
+            dnf config-manager --set-enabled HighAvailability
+
             # PVE system dependencies
             dnf install -y \
-              corosync-devel libqb-devel fuse3-devel \
+              corosynclib-devel libqb-devel fuse3-devel \
               openvswitch lvm2 device-mapper-multipath \
               iscsi-initiator-utils targetcli nfs-utils rpcbind \
               smartmontools qemu-kvm qemu-img libvirt-client \
