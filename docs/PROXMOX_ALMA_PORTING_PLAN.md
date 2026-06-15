@@ -4,13 +4,13 @@
 
 **Vision**: Deliver a single, integrated web UI for KVM virtualisation, LXC containers, ZFS storage, firewall management, and network configuration on AlmaLinux — matching the Proxmox VE user experience without requiring Debian.
 
-**Approach**: Port the Proxmox VE (PVE) userspace packages to RPM format, bypassing the `pve-kernel` entirely by using the stock AlmaLinux kernel with OpenZFS DKMS modules. The porting effort leverages two existing reference implementations: the `proxmox-nixos` project (which proves PVE core is portable — 50+ Nix expressions packaging all major PVE components) and the local `astralemu-packages` repository (which provides a proven Bash+Docker+YAML CI pipeline for multi-format package conversion).
+**Approach**: Port the Proxmox VE (PVE) userspace packages to RPM format, bypassing the `pve-kernel` entirely by using the stock AlmaLinux kernel with OpenZFS DKMS modules. The porting effort leverages two existing reference implementations: the `proxmox-nixos` project (which proves PVE core is portable — 50+ Nix expressions packaging all major PVE components) and the project's own `scripts/` directory (which provides a proven Bash+Docker+YAML CI pipeline for multi-format package conversion, originally derived from the `astralemu-packages` fork).
 
 **Estimated effort**: 3–5 months for a single experienced developer, assuming familiarity with RPM packaging, Perl, and Proxmox internals.
 
 **Key enablers**:
 - `proxmox-nixos` (1.3k stars) — complete package graph and build orchestration reference
-- `astralemu-packages` — reusable CI/CD plumbing (30–40% of infrastructure scripts)
+- Project `scripts/` — reusable CI/CD plumbing (30–40% of infrastructure scripts, originally from `astralemu-packages`)
 - AlmaLinux EL10 kernel — avoids the entire `pve-kernel` porting effort
 
 ## 2. Background & Motivation
@@ -65,9 +65,9 @@ The `proxmox-nixos` project (https://github.com/SaumonNet/proxmox-nixos) proves 
 - **Medium** for the build system (Nix's `callPackage` and `stdenv.mkDerivation` must be translated to RPM specfiles + Docker build environments)
 - **Low** for runtime integration (NixOS module system vs systemd units on AlmaLinux)
 
-### 3.2 astralemu-packages (CI/CD & Packaging Plumbing)
+### 3.2 Project CI/CD & Packaging Scripts
 
-**Location**: `/home/gabriel/GIT/astralemu-packages/` (local)
+**Location**: `/home/gabriel/GIT/HomeLab/scripts/` (local, within this project)
 
 **What is reusable**:
 
@@ -89,11 +89,11 @@ The `proxmox-nixos` project (https://github.com/SaumonNet/proxmox-nixos) proves 
 | Kernel build scripts (`kernel-helpers.sh`, `kernel-amd64-*`) | PVE port uses stock EL kernel, not custom kernel builds |
 | `distros.yml` | Defines Ubuntu/Debian/Fedora/Arch targets — will need AlmaLinux addition but the file structure is simple |
 | `perf-libs` package | GPU/Mesa performance libs — not needed for PVE |
-| `setperf`, `astralemu-deps-repo` | Device-specific meta-packages — irrelevant |
+| `setperf`, `astralemu-deps-repo` | Device-specific meta-packages — irrelevant (from the original `astralemu-packages` fork, not part of PVE porting) |
 
 **Estimated reuse**: 30–40% of infrastructure plumbing (build scripts, dependency resolution, CI patterns). The package definitions themselves are 0% reusable (completely different software), but the build pipeline architecture is proven working.
 
-**Key insight**: the `astralemu-packages` pipeline uses an intermediate `.pkg.tar` format (a directory with `meta/` for metadata and `root/` for filesystem contents). Every source format (deb, rpm, pacman) is first extracted to `.pkg.tar`, then converted to the target format. This "extract once, convert many" pattern is directly applicable to PVE's Debian packages.
+**Key insight**: the project's `scripts/` pipeline uses an intermediate `.pkg.tar` format (a directory with `meta/` for metadata and `root/` for filesystem contents). Every source format (deb, rpm, pacman) is first extracted to `.pkg.tar`, then converted to the target format. This "extract once, convert many" pattern is directly applicable to PVE's Debian packages.
 
 ### 3.3 Enterprise Linux Kernel Strategy
 
@@ -191,7 +191,7 @@ Layer 7 — PVE manager (depends on all above)
 
 ### 4.2 Build System Design
 
-**Intermediate format**: `.pkg.tar` directory (from `astralemu-packages`)
+**Intermediate format**: `.pkg.tar` directory (from project `scripts/`)
 - Contains `meta/` (name, version, arch, description, maintainer, depends, provides, conflicts, replaces, scripts/) and `root/` (filesystem payload)
 - Enables format-agnostic processing: extract once, convert to any target
 
@@ -222,7 +222,7 @@ RUN dnf install -y \
     && dnf clean all
 ```
 
-**CI**: GitHub Actions with a multi-job pipeline inspired by `astralemu-packages`:
+**CI**: GitHub Actions with a multi-job pipeline inspired by `proxmox-nixos` and the project's own `scripts/`:
 1. **resolve-deps**: Query AlmaLinux repos for dependency availability
 2. **build-perl-deps**: Build Layer 0 Perl modules
 3. **build-helpers**: Build Layer 1 helper libraries
@@ -264,7 +264,7 @@ dnf install -y zfs-dkms zfs
 | Task | Details |
 |---|---|
 | Create repo structure | `packages/`, `scripts/`, `.github/workflows/` |
-| Copy reusable scripts | `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` from `astralemu-packages/scripts/` |
+| Copy reusable scripts | `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` — already present in project `scripts/` |
 | Create AlmaLinux dep-map | Extend `dep-map.conf` with Proxmox-specific Debian→RPM mappings (Perl modules, corosync, libqb, fuse3, etc.) |
 | Create `packages.yml` | Based on the dependency graph in §4.1, list all packages with `id`, `version_source`, `build_time`, `depends_on` |
 | Build Docker image | `almalinux:10` + dev tools + Perl 5.40 + meson + RPM build tools |
@@ -413,8 +413,8 @@ dnf install -y zfs-dkms zfs
 
 ## 9. Immediate Next Steps
 
-1. **Fork/clone reference repositories** — Clone `proxmox-nixos` and have `astralemu-packages` available locally for reference.
-3. **Copy reusable scripts** — `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` from `astralemu-packages/scripts/`.
+1. **Fork/clone reference repositories** — Clone `proxmox-nixos` for reference (project `scripts/` already contains the packaging pipeline).
+3. **Adapt reusable scripts** — `pkg-build-rpm.sh`, `pkg-extract.sh`, `cross-pkg-helpers.sh`, `resolve-deps.sh`, `dep-map.conf` — already present in project `scripts/`.
 4. **Extend `dep-map.conf`** — Add Proxmox-specific Debian→RPM mappings for Perl modules, corosync, libqb, fuse3, etc.
 5. **Write first `packages.yml`** — Start with Layer 0 Perl leaf packages (no dependencies, easy to validate).
 6. **Build Docker image** — `almalinux:10` + dev tools + Perl 5.40 + meson + RPM build tools.
@@ -424,7 +424,7 @@ dnf install -y zfs-dkms zfs
 
 - **proxmox-nixos**: https://github.com/SaumonNet/proxmox-nixos — 1.3k stars, ~50 Nix expressions packaging all major PVE components
 - **Proxmox source repositories**: https://git.proxmox.com/ — official Git server for all PVE packages
-- **astralemu-packages**: `/home/gabriel/GIT/astralemu-packages/` — local repo with proven multi-format packaging CI pipeline
+- **astralemu-packages** (historical upstream): `/home/gabriel/GIT/astralemu-packages/` — original local repo with multi-format packaging CI pipeline; the project's `scripts/` were forked from this repository
 - **OpenZFS on Linux**: https://openzfs.github.io/openzfs-docs/ — ZFS DKMS module for EL distributions
 - **AlmaLinux**: https://almalinux.org/ — RHEL-compatible distribution
 - **EPEL**: https://docs.fedoraproject.org/en-US/epel/ — Extra Packages for Enterprise Linux
@@ -608,4 +608,4 @@ Most path substitutions fall into these categories:
 1. **sbin → bin merge**: On EL10, `/sbin` and `/usr/sbin` are symlinks to `/usr/bin`, continuing the merge started in EL9. Path references like `/sbin/zfs` should become `/usr/sbin/zfs` (or just rely on PATH). **Note**: on AlmaLinux 10, `/sbin` and `/usr/sbin` are symlinks pointing to `/usr/bin/`, as they were on AlmaLinux 9. This means references to `/usr/sbin/xxx` work via symlink resolution, but the actual binary resides in `/usr/bin/`. When patching PVE source code, prefer `/usr/bin/` as the canonical path, or rely on `$PATH` lookup rather than hardcoding `/usr/sbin/`.
 2. **Package install paths**: `/usr/share/perl5` may need adjustment depending on how RPM Perl modules are installed.
 3. **Debian-specific removal**: `API2::APT` and APT-related code must be stripped.
-4. **Wrapper PATH injection**: Instead of sed-replacing every binary path, the `astralemu-packages` approach of using `--prefix PATH` in RPM scriptlets (or `wrapProgram` equivalent) is cleaner.
+4. **Wrapper PATH injection**: Instead of sed-replacing every binary path, the project's own `scripts/` approach of using `--prefix PATH` in RPM scriptlets (or `wrapProgram` equivalent, as demonstrated in `proxmox-nixos`) is cleaner.
