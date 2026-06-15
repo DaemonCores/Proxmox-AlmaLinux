@@ -78,11 +78,17 @@ jobs:
 
             case "$source" in
               git)
-                # Fetch latest commit from git.proxmox.com
+                # Fetch latest commit via git ls-remote
+                # git.proxmox.com is a gitweb (CGI) server, not GitLab/Gitea —
+                # there is no REST API. Use the git protocol directly.
                 if [[ -n "$repo" ]]; then
-                  version=$(curl -fsSL "https://git.proxmox.com/api/v4/projects/$(echo "$repo" | sed 's|/|%2F|g')/repository/commits/master" | jq -r '.id // empty')
-                  if [[ -z "$version" || "$version" == "null" ]]; then
-                    echo "WARN: Failed to fetch $pkg_id version, using hash-only"
+                  version=$(git ls-remote "$repo" refs/heads/master 2>/dev/null | awk '{print $1}' || true)
+                  if [[ -z "$version" ]]; then
+                    # Fallback: try 'main' branch in case default changed
+                    version=$(git ls-remote "$repo" refs/heads/main 2>/dev/null | awk '{print $1}' || true)
+                  fi
+                  if [[ -z "$version" ]]; then
+                    echo "WARN: Failed to fetch $pkg_id version (repo not accessible), using hash-only"
                     version=""
                   fi
                 else
