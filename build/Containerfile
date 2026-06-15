@@ -5,7 +5,7 @@ FROM almalinux:10
 
 # --- EPEL repository + HighAvailability repo (corosynclib-devel, libqb-devel) ---
 RUN dnf install -y epel-release \
-    && dnf config-manager --set-enabled HighAvailability \
+    && dnf config-manager --set-enabled highavailability \
     && dnf clean all
 
 # --- Base tools ---

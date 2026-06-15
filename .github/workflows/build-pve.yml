@@ -169,7 +169,7 @@ jobs:
               perl perl-devel perl-ExtUtils-Embed perl-CPAN
 
             # Enable HighAvailability repo for corosynclib-devel, libqb-devel
-            dnf config-manager --set-enabled HighAvailability
+            dnf config-manager --set-enabled highavailability
 
             # PVE system dependencies
             dnf install -y \
