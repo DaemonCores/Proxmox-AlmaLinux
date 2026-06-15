@@ -1,38 +1,40 @@
 #!/bin/bash
-# build.sh — perl-mail-spamassassin (Layer 0: Perl leaf module, no PVE deps)
+# build.sh — cstream (Layer 1: C utility, no PVE deps)
 #
-# Produces a .pkg.tar intermediate with meta/ + root/ for downstream
-# conversion to RPM (and deb/pacman) via pkg-build-rpm.sh et al.
+# cstream — General-purpose stream handling tool like dd.
+# Used by PVE for streaming data operations.
+# Downloaded from https://www.cons.org/cracauer/cstream/
+#
+# Adapted from proxmox-nixos:
+#   - Nix: stdenv.mkDerivation, simple fetchurl + build
+#   - AlmaLinux: standard autotools build
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="perl-mail-spamassassin"
-REPO_URL="https://git.proxmox.com/git/proxmox-spamassassin.git"
+PKG_NAME="cstream"
+CSTREAM_VERSION="4.0.0"
+CSTREAM_URL="https://www.cons.org/cracauer/download/cstream-${CSTREAM_VERSION}.tar.gz"
 
 # ------------------------------------------------------------------
-# 1. Clone source
+# 1. Download source
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Cloning source ==="
+echo "=== [$PKG_NAME] Downloading source ==="
 WORKDIR="/tmp/src/${PKG_NAME}"
 rm -rf "$WORKDIR"
-git clone "$REPO_URL" "$WORKDIR"
+mkdir -p "$WORKDIR"
+curl -L -o "/tmp/${PKG_NAME}.tar.gz" "$CSTREAM_URL"
+tar xzf "/tmp/${PKG_NAME}.tar.gz" -C "/tmp/src"
+mv "/tmp/src/cstream-${CSTREAM_VERSION}" "$WORKDIR"
 cd "$WORKDIR"
 
-if [[ -n "${VERSION:-}" ]]; then
-    git checkout "$VERSION" 2>/dev/null || git checkout "${SHORT:-${VERSION:0:7}}" 2>/dev/null || true
-fi
-
 # ------------------------------------------------------------------
-# 2. Build the Perl module (SpamAssassin from upstream/ in proxmox repo)
-#    The proxmox-spamassassin repo has the SpamAssassin source in
-#    upstream/ plus Proxmox rule updates. Build from upstream/.
+# 2. Build (standard autotools)
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Building ==="
-cd "$WORKDIR/upstream"
-perl Makefile.PL INSTALLDIRS=vendor NO_PACKLIST=1 NO_PERLLOCAL=1
+./configure --prefix=/usr --disable-static
 make -j"$(nproc)"
 
 # ------------------------------------------------------------------
@@ -43,25 +45,12 @@ STAGE="/tmp/pkg/${PKG_NAME}"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/root" "$STAGE/meta"
 
-make install DESTDIR="$STAGE/root" INSTALLDIRS=vendor
-
-find "$STAGE/root" -name '.packlist' -delete 2>/dev/null || true
-find "$STAGE/root" -name 'perllocal.pod' -delete 2>/dev/null || true
+make install DESTDIR="$STAGE/root" PREFIX=/usr || true
 
 # ------------------------------------------------------------------
 # 4. Determine version
 # ------------------------------------------------------------------
-# Try upstream META.yml first, then Makefile, then git
-if [[ -f "$WORKDIR/upstream/META.yml" ]]; then
-    PKG_VERSION="$(grep '^version:' "$WORKDIR/upstream/META.yml" | head -1 | sed 's/version:[[:space:]]*//; s/["[:space:]]//g')"
-fi
-if [[ -z "${PKG_VERSION:-}" ]] && [[ -f "$WORKDIR/upstream/Makefile" ]]; then
-    PKG_VERSION="$(grep '^VERSION' "$WORKDIR/upstream/Makefile" | head -1 | sed 's/.*= *//; s/ //g')"
-fi
-if [[ -z "${PKG_VERSION:-}" ]]; then
-    PKG_VERSION="${SHORT:-0.0.1}"
-fi
-PKG_VERSION="${PKG_VERSION}-${SHORT:-1}"
+PKG_VERSION="${CSTREAM_VERSION}+${SHORT:-git}"
 
 # ------------------------------------------------------------------
 # 5. Write meta/ files
@@ -69,17 +58,11 @@ PKG_VERSION="${PKG_VERSION}-${SHORT:-1}"
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Mail::SpamAssassin — spam email filter" > "$STAGE/meta/description"
+echo "cstream — General-purpose stream handling tool like dd" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
-perl
-perl-net-dns
-perl-net-ip
-perl-uri
-perl-http-daemon
-perl-json
 EOF
 
 # ------------------------------------------------------------------

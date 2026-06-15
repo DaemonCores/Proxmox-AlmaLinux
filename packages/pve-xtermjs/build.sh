@@ -1,19 +1,23 @@
 #!/bin/bash
-# build.sh — proxmox-rs (Layer 1: Rust library, Proxmox framework)
+# build.sh — pve-xtermjs (Layer 7: Static JS assets, no PVE deps)
 #
-# Core Rust library for Proxmox — provides shared types, utilities, and APIs
-# consumed by proxmox-perl-rs and other Rust-based PVE components.
+# xterm.js webclient for Proxmox VE — terminal emulator in the browser.
+# Static JS/HTML assets, no compilation needed.
+# Source from git.proxmox.com.
 #
-# Adapted from proxmox-nixos: rustPlatform.buildRustPackage
-# AlmaLinux: cargo build --release, system deps
+# Adapted from proxmox-nixos:
+#   - Nix: stdenv.mkDerivation, dontBuild = true
+#   - Nix: installPhase copies src/xterm.js/src/* to $out/share/pve-xtermjs/
+#   - Nix: renames index.html.hbs.in and index.html.tpl.in
+#   - AlmaLinux: keep /usr/share paths (FHS)
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="proxmox-rs"
-REPO_URL="https://git.proxmox.com/git/proxmox.git"
+PKG_NAME="pve-xtermjs"
+REPO_URL="git://git.proxmox.com/git/pve-xtermjs.git"
 
 # ------------------------------------------------------------------
 # 1. Clone source
@@ -29,53 +33,36 @@ if [[ -n "${VERSION:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------
-# 2. Apply patches from debian/patches/series
+# 2. Build (no compilation — static JS/HTML assets)
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Applying patches ==="
-if [[ -f "$WORKDIR/debian/patches/series" ]]; then
-    while IFS= read -r patch; do
-        [[ -z "$patch" || "$patch" =~ ^# ]] && continue
-        echo "  Applying: $patch"
-        patch -p1 -d "$WORKDIR" -i "$WORKDIR/debian/patches/$patch" || true
-    done < "$WORKDIR/debian/patches/series"
-fi
+echo "=== [$PKG_NAME] Building (static assets) ==="
 
 # ------------------------------------------------------------------
-# 3. Build (Rust — cargo build --release)
-# ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Building ==="
-# proxmox-rs is a workspace of Rust crates
-cargo build --release
-
-# ------------------------------------------------------------------
-# 4. Install to staging root
+# 3. Install to staging root
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Installing to staging root ==="
 STAGE="/tmp/pkg/${PKG_NAME}"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/root/usr/lib" "$STAGE/meta"
+mkdir -p "$STAGE/root/usr/share/pve-xtermjs" "$STAGE/meta"
 
-# Install the built Rust libraries (.rlib/.so) to staging
-# The primary output is static/shared Rust libraries consumed at build time
-# by downstream crates (proxmox-perl-rs, pve-qemu, etc.)
-cargo install --path . --root "$STAGE/root/usr" --locked || true
-
-# For library crates, copy the compiled artifacts
-if [[ -d "$WORKDIR/target/release" ]]; then
-    mkdir -p "$STAGE/root/usr/lib/proxmox-rs"
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.rlib' -exec cp {} "$STAGE/root/usr/lib/proxmox-rs/" \; 2>/dev/null || true
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.so' -exec cp {} "$STAGE/root/usr/lib/" \; 2>/dev/null || true
+# Copy all web assets per Nix installPhase
+if [[ -d "$WORKDIR/xterm.js/src" ]]; then
+    cp -r "$WORKDIR/xterm.js/src/"* "$STAGE/root/usr/share/pve-xtermjs/"
+elif [[ -d "$WORKDIR/src" ]]; then
+    cp -r "$WORKDIR/src/"* "$STAGE/root/usr/share/pve-xtermjs/"
 fi
 
+# Rename template files per Nix postInstall
+cd "$STAGE/root/usr/share/pve-xtermjs"
+[[ -f "index.html.hbs.in" ]] && mv index.html.hbs.in index.html.hbs 2>/dev/null || true
+[[ -f "index.html.tpl.in" ]] && mv index.html.tpl.in index.html.tpl 2>/dev/null || true
+
 # ------------------------------------------------------------------
-# 5. Determine version
+# 4. Determine version
 # ------------------------------------------------------------------
 PKG_VERSION=""
 if [[ -f "$WORKDIR/debian/changelog" ]]; then
     PKG_VERSION="$(head -1 "$WORKDIR/debian/changelog" | sed 's/.*(\([^)]*\)).*/\1/')"
-fi
-if [[ -z "${PKG_VERSION:-}" ]]; then
-    PKG_VERSION="$(grep '^version' "$WORKDIR/Cargo.toml" | head -1 | sed 's/.*= *"*\([^"]*\)"*.*/\1/')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
     PKG_VERSION="${SHORT:-0.0.1}"
@@ -83,23 +70,21 @@ fi
 PKG_VERSION="${PKG_VERSION}+${SHORT:-git}"
 
 # ------------------------------------------------------------------
-# 6. Write meta/ files
+# 5. Write meta/ files
 # ------------------------------------------------------------------
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Proxmox Rust framework — core types, utilities, and API libraries" > "$STAGE/meta/description"
+echo "PVE xterm.js — Web-based terminal emulator for Proxmox VE" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
-cargo
-openssl-libs
-pkgconf-pkg-config
+termproxy
 EOF
 
 # ------------------------------------------------------------------
-# 7. Package as .pkg.tar
+# 6. Package as .pkg.tar
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Creating .pkg.tar ==="
 cd "$STAGE"

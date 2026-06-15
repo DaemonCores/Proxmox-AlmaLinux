@@ -1,19 +1,22 @@
 #!/bin/bash
-# build.sh — proxmox-rs (Layer 1: Rust library, Proxmox framework)
+# build.sh — qrcodejs (Layer 1: JavaScript library, no PVE deps)
 #
-# Core Rust library for Proxmox — provides shared types, utilities, and APIs
-# consumed by proxmox-perl-rs and other Rust-based PVE components.
+# QRCode.js — Cross-browser QR code generator for JavaScript.
+# Sourced from git.proxmox.com (Proxmox's fork).
+# Uses uglify-js for minification.
 #
-# Adapted from proxmox-nixos: rustPlatform.buildRustPackage
-# AlmaLinux: cargo build --release, system deps
+# Adapted from proxmox-nixos:
+#   - sourceRoot = src/
+#   - Nix: nativeBuildInputs = [ uglify-js ]; installPhase copies qrcode.min.js
+#   - AlmaLinux: keep /usr/share paths (FHS), use system uglify-js
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="proxmox-rs"
-REPO_URL="https://git.proxmox.com/git/proxmox.git"
+PKG_NAME="qrcodejs"
+REPO_URL="git://git.proxmox.com/git/libjs-qrcodejs.git"
 
 # ------------------------------------------------------------------
 # 1. Clone source
@@ -28,54 +31,39 @@ if [[ -n "${VERSION:-}" ]]; then
     git checkout "$VERSION" 2>/dev/null || git checkout "${SHORT:-${VERSION:0:7}}" 2>/dev/null || true
 fi
 
+cd "$WORKDIR/src" 2>/dev/null || cd "$WORKDIR" || true
+
 # ------------------------------------------------------------------
-# 2. Apply patches from debian/patches/series
+# 2. Build (uglify-js minification)
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Applying patches ==="
-if [[ -f "$WORKDIR/debian/patches/series" ]]; then
-    while IFS= read -r patch; do
-        [[ -z "$patch" || "$patch" =~ ^# ]] && continue
-        echo "  Applying: $patch"
-        patch -p1 -d "$WORKDIR" -i "$WORKDIR/debian/patches/$patch" || true
-    done < "$WORKDIR/debian/patches/series"
+echo "=== [$PKG_NAME] Building ==="
+if command -v uglifyjs &>/dev/null; then
+    if [[ -f "qrcode.js" ]]; then
+        uglifyjs qrcode.js -o qrcode.min.js || true
+    fi
 fi
 
 # ------------------------------------------------------------------
-# 3. Build (Rust — cargo build --release)
-# ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Building ==="
-# proxmox-rs is a workspace of Rust crates
-cargo build --release
-
-# ------------------------------------------------------------------
-# 4. Install to staging root
+# 3. Install to staging root
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Installing to staging root ==="
 STAGE="/tmp/pkg/${PKG_NAME}"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/root/usr/lib" "$STAGE/meta"
+mkdir -p "$STAGE/root/usr/share/javascript/qrcodejs" "$STAGE/meta"
 
-# Install the built Rust libraries (.rlib/.so) to staging
-# The primary output is static/shared Rust libraries consumed at build time
-# by downstream crates (proxmox-perl-rs, pve-qemu, etc.)
-cargo install --path . --root "$STAGE/root/usr" --locked || true
-
-# For library crates, copy the compiled artifacts
-if [[ -d "$WORKDIR/target/release" ]]; then
-    mkdir -p "$STAGE/root/usr/lib/proxmox-rs"
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.rlib' -exec cp {} "$STAGE/root/usr/lib/proxmox-rs/" \; 2>/dev/null || true
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.so' -exec cp {} "$STAGE/root/usr/lib/" \; 2>/dev/null || true
+# Copy minified JS (or original if minification failed)
+if [[ -f "qrcode.min.js" ]]; then
+    cp qrcode.min.js "$STAGE/root/usr/share/javascript/qrcodejs/"
+elif [[ -f "qrcode.js" ]]; then
+    cp qrcode.js "$STAGE/root/usr/share/javascript/qrcodejs/"
 fi
 
 # ------------------------------------------------------------------
-# 5. Determine version
+# 4. Determine version
 # ------------------------------------------------------------------
 PKG_VERSION=""
 if [[ -f "$WORKDIR/debian/changelog" ]]; then
     PKG_VERSION="$(head -1 "$WORKDIR/debian/changelog" | sed 's/.*(\([^)]*\)).*/\1/')"
-fi
-if [[ -z "${PKG_VERSION:-}" ]]; then
-    PKG_VERSION="$(grep '^version' "$WORKDIR/Cargo.toml" | head -1 | sed 's/.*= *"*\([^"]*\)"*.*/\1/')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
     PKG_VERSION="${SHORT:-0.0.1}"
@@ -83,23 +71,20 @@ fi
 PKG_VERSION="${PKG_VERSION}+${SHORT:-git}"
 
 # ------------------------------------------------------------------
-# 6. Write meta/ files
+# 5. Write meta/ files
 # ------------------------------------------------------------------
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Proxmox Rust framework — core types, utilities, and API libraries" > "$STAGE/meta/description"
+echo "QRCode.js — Cross-browser QR code generator for JavaScript" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
-cargo
-openssl-libs
-pkgconf-pkg-config
 EOF
 
 # ------------------------------------------------------------------
-# 7. Package as .pkg.tar
+# 6. Package as .pkg.tar
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Creating .pkg.tar ==="
 cd "$STAGE"

@@ -18,8 +18,8 @@ on:
         description: 'Source distro id from distros.yml (almalinux-10)'
       device:
         type: string
-        default: 'almabuilder'
-        description: 'Device/node ID. Fixed to almabuilder in single-node setup'
+        default: 'proxmox-almalinux'
+        description: 'Device/node ID. Fixed to proxmox-almalinux in single-node setup'
       build_target:
         type: string
         default: 'x86_64'
@@ -87,7 +87,7 @@ jobs:
       - name: Filter noarch packages
         run: |
           shopt -s nullglob
-          DEVICES='["almabuilder"]'
+          DEVICES='["proxmox-almalinux"]'
           if [[ ! -d noarch-stage ]]; then
             echo "no noarch artifacts pulled, skipping filter"
             exit 0
@@ -327,7 +327,7 @@ jobs:
             echo "--- $DISTRO / $DIR_ARCH ($arch) ---"
 
             # Create RPM output dirs
-            # Single node: device/{almabuilder}, deps/{almalinux-10}
+            # Single node: device/{proxmox-almalinux}, deps/{almalinux-10}
             VERSION="${{ matrix.version }}"
             OUTPUT_DIR="repo-output/dnf/device/${DEVICE}/${VERSION}/${DIR_ARCH}"
             DEP_OUTPUT_DIR="repo-output/dnf/deps/${SOURCE_DISTRO}/${VERSION}/${DIR_ARCH}"
@@ -550,9 +550,9 @@ jobs:
             cd ..
           }
           SOURCE_DISTRO="${{ inputs.source_distro }}"
+          # Single node: always deploy for proxmox-almalinux
 
-          # Single node: always deploy for almabuilder
-          DEPLOY_DEVICES="almabuilder"
+          DEPLOY_DEVICES="proxmox-almalinux"
           echo "DEPLOY_DEVICES=$DEPLOY_DEVICES" >> "$GITHUB_ENV"
           echo "Deploying for devices: $DEPLOY_DEVICES"
 
@@ -568,7 +568,7 @@ jobs:
             rm -rf "gh-pages-dir/dnf/deps/${SOURCE_DISTRO}"
           fi
 
-          # Device repos — almabuilder only
+          # Device repos — proxmox-almalinux only
           for DEVICE in $DEPLOY_DEVICES; do
             mkdir -p "gh-pages-dir/dnf/device/${DEVICE}"
           done
@@ -677,21 +677,21 @@ jobs:
           sign_dnf_repo() {
             local repo_dir="$1" label="$2" baseurl_path="$3"
             [[ -d "$repo_dir" ]] || return 0
-            gpg --armor --export "AlmaBuilder Packages" > "${repo_dir}/almabuilder.gpg"
+            gpg --armor --export "Proxmox AlmaLinux" > "${repo_dir}/proxmox-almalinux.gpg"
 
             find "$repo_dir" -name 'repomd.xml' | while read -r repomd; do
               rm -f "${repomd}.asc"
-              gpg --batch --default-key "AlmaBuilder Packages" -abs \
+              gpg --batch --default-key "Proxmox AlmaLinux" -abs \
                 -o "${repomd}.asc" "$repomd"
             done
 
-            cat > "${repo_dir}/almabuilder-${label}.repo" << REPO_EOF
-          [almabuilder-${label}]
-          name=AlmaBuilder Packages (${label})
-          baseurl=https://almabuilder.github.io/almabuilder-packages/${baseurl_path}/\$releasever/\$basearch/
+            cat > "${repo_dir}/proxmox-almalinux-${label}.repo" << REPO_EOF
+          [proxmox-almalinux-${label}]
+          name=Proxmox AlmaLinux (${label})
+          baseurl=https://daemoncores.github.io/proxmox-almalinux/${baseurl_path}/\$releasever/\$basearch/
           enabled=1
           gpgcheck=1
-          gpgkey=https://almabuilder.github.io/almabuilder-packages/${baseurl_path}/almabuilder.gpg
+          gpgkey=https://daemoncores.github.io/proxmox-almalinux/${baseurl_path}/proxmox-almalinux.gpg
           REPO_EOF
           }
 
@@ -757,7 +757,7 @@ jobs:
           BODY_TMP=$(mktemp)
 
           build_listing "gh-pages-dir" "" "true" "$BODY_TMP"
-          render_page "AlmaBuilder Packages" "$BODY_TMP" "gh-pages-dir/index.html"
+          render_page "Proxmox AlmaLinux" "$BODY_TMP" "gh-pages-dir/index.html"
 
           find gh-pages-dir -mindepth 1 -type d | sort | while read -r dir; do
             [[ "$dir" == *".git"* ]] && continue

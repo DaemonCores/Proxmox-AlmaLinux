@@ -47,7 +47,7 @@ echo "$SOURCE_DISTRO" > "$meta_dir/source_distro"
 # source_format: derived from distros.yml by matching SOURCE_DISTRO against
 # the apt/dnf/pacman entries. Falls back to deb if the lookup fails (most
 # common case, keeps existing behaviour).
-distros_yml="${ALMABUILDER_DISTROS_YML:-/workspace/distros.yml}"
+distros_yml="${PROXMOX_ALMALINUX_DISTROS_YML:-/workspace/distros.yml}"
 src_format="deb"
 if command -v yq >/dev/null && [[ -f "$distros_yml" ]]; then
   for fmt_key in apt:deb dnf:rpm pacman:pacman; do
@@ -62,7 +62,7 @@ fi
 echo "$src_format" > "$meta_dir/source_format"
 
 # maintainer: project-wide constant, override via env if needed.
-echo "${ALMABUILDER_MAINTAINER:-AlmaBuilder <guillou.gabriel@gmail.com>}" \
+echo "${PROXMOX_ALMALINUX_MAINTAINER:-Proxmox AlmaLinux <guillou.gabriel@gmail.com>}" \
   > "$meta_dir/maintainer"
 
 # license retention: copy upstream LICENSE / COPYING / NOTICE / COPYRIGHT

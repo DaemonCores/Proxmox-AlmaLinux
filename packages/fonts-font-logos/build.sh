@@ -1,19 +1,22 @@
 #!/bin/bash
-# build.sh — proxmox-rs (Layer 1: Rust library, Proxmox framework)
+# build.sh — fonts-font-logos (Layer 1: Font package, no PVE deps)
 #
-# Core Rust library for Proxmox — provides shared types, utilities, and APIs
-# consumed by proxmox-perl-rs and other Rust-based PVE components.
+# Font Awesome + custom font icons used by PVE web UI.
+# Sourced from git.proxmox.com.
+# Install is a simple copy of CSS and font assets.
 #
-# Adapted from proxmox-nixos: rustPlatform.buildRustPackage
-# AlmaLinux: cargo build --release, system deps
+# Adapted from proxmox-nixos:
+#   - sourceRoot = src/
+#   - Nix installPhase: copy font-logos/assets and font-logos.css
+#   - AlmaLinux: install to /usr/share/fonts-font-logos/ (FHS)
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="proxmox-rs"
-REPO_URL="https://git.proxmox.com/git/proxmox.git"
+PKG_NAME="fonts-font-logos"
+REPO_URL="git://git.proxmox.com/git/fonts-font-logos.git"
 
 # ------------------------------------------------------------------
 # 1. Clone source
@@ -28,54 +31,35 @@ if [[ -n "${VERSION:-}" ]]; then
     git checkout "$VERSION" 2>/dev/null || git checkout "${SHORT:-${VERSION:0:7}}" 2>/dev/null || true
 fi
 
-# ------------------------------------------------------------------
-# 2. Apply patches from debian/patches/series
-# ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Applying patches ==="
-if [[ -f "$WORKDIR/debian/patches/series" ]]; then
-    while IFS= read -r patch; do
-        [[ -z "$patch" || "$patch" =~ ^# ]] && continue
-        echo "  Applying: $patch"
-        patch -p1 -d "$WORKDIR" -i "$WORKDIR/debian/patches/$patch" || true
-    done < "$WORKDIR/debian/patches/series"
-fi
+cd "$WORKDIR/src" 2>/dev/null || cd "$WORKDIR" || true
 
 # ------------------------------------------------------------------
-# 3. Build (Rust — cargo build --release)
+# 2. Build (no compilation — font assets)
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Building ==="
-# proxmox-rs is a workspace of Rust crates
-cargo build --release
+echo "=== [$PKG_NAME] Building (font assets) ==="
 
 # ------------------------------------------------------------------
-# 4. Install to staging root
+# 3. Install to staging root
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Installing to staging root ==="
 STAGE="/tmp/pkg/${PKG_NAME}"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/root/usr/lib" "$STAGE/meta"
+mkdir -p "$STAGE/root/usr/share/fonts-font-logos/css" "$STAGE/root/usr/share/fonts-font-logos/fonts" "$STAGE/meta"
 
-# Install the built Rust libraries (.rlib/.so) to staging
-# The primary output is static/shared Rust libraries consumed at build time
-# by downstream crates (proxmox-perl-rs, pve-qemu, etc.)
-cargo install --path . --root "$STAGE/root/usr" --locked || true
-
-# For library crates, copy the compiled artifacts
-if [[ -d "$WORKDIR/target/release" ]]; then
-    mkdir -p "$STAGE/root/usr/lib/proxmox-rs"
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.rlib' -exec cp {} "$STAGE/root/usr/lib/proxmox-rs/" \; 2>/dev/null || true
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.so' -exec cp {} "$STAGE/root/usr/lib/" \; 2>/dev/null || true
+# Copy font assets per Nix installPhase
+if [[ -d "$WORKDIR/src/font-logos/assets" ]]; then
+    cp -r "$WORKDIR/src/font-logos/assets" "$STAGE/root/usr/share/fonts-font-logos/fonts/"
+fi
+if [[ -f "$WORKDIR/src/font-logos.css" ]]; then
+    cp "$WORKDIR/src/font-logos.css" "$STAGE/root/usr/share/fonts-font-logos/css/"
 fi
 
 # ------------------------------------------------------------------
-# 5. Determine version
+# 4. Determine version
 # ------------------------------------------------------------------
 PKG_VERSION=""
 if [[ -f "$WORKDIR/debian/changelog" ]]; then
     PKG_VERSION="$(head -1 "$WORKDIR/debian/changelog" | sed 's/.*(\([^)]*\)).*/\1/')"
-fi
-if [[ -z "${PKG_VERSION:-}" ]]; then
-    PKG_VERSION="$(grep '^version' "$WORKDIR/Cargo.toml" | head -1 | sed 's/.*= *"*\([^"]*\)"*.*/\1/')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
     PKG_VERSION="${SHORT:-0.0.1}"
@@ -83,23 +67,21 @@ fi
 PKG_VERSION="${PKG_VERSION}+${SHORT:-git}"
 
 # ------------------------------------------------------------------
-# 6. Write meta/ files
+# 5. Write meta/ files
 # ------------------------------------------------------------------
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Proxmox Rust framework — core types, utilities, and API libraries" > "$STAGE/meta/description"
+echo "Font logos — Font Awesome + custom font icons for PVE web UI" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
-cargo
-openssl-libs
-pkgconf-pkg-config
+fontconfig
 EOF
 
 # ------------------------------------------------------------------
-# 7. Package as .pkg.tar
+# 6. Package as .pkg.tar
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Creating .pkg.tar ==="
 cd "$STAGE"

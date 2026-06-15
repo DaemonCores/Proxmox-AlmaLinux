@@ -1,4 +1,4 @@
-# AlmaBuilder — Target distribution definitions
+# Proxmox AlmaLinux — Target distribution definitions
 #
 # Single distribution: AlmaLinux 10 via DNF.
 # The `enabled` flag controls whether the CI publishes to this distro.

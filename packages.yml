@@ -26,9 +26,8 @@ packages:
   # These are the first packages built and are consumed by Layer 2+.
 
   - id: perl-authen-pam
-    repo: "git://git.proxmox.com/git/perl-authen-pam.git"
-    tracker_file: perl-authen-pam.txt
-    version_source: git
+    repo: "https://www.cpan.org/authors/id/N/NI/NIKIP/Authen-PAM-0.16.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
@@ -106,7 +105,7 @@ packages:
     layer: 0
 
   - id: perl-mail-spamassassin
-    repo: "git://git.proxmox.com/git/perl-mail-spamassassin.git"
+    repo: "git://git.proxmox.com/git/proxmox-spamassassin.git"
     tracker_file: perl-mail-spamassassin.txt
     version_source: git
     build_time: 5
@@ -169,6 +168,86 @@ packages:
     artifact_type: pkg
     layer: 0
 
+  - id: perl-findbin
+    repo: "https://www.cpan.org/authors/id/T/TO/TODDR/FindBin-1.54.tar.gz"
+    tracker_file: perl-findbin.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-iosocketip
+    repo: "https://www.cpan.org/authors/id/P/PE/PEVANS/IO-Socket-IP-0.43.tar.gz"
+    tracker_file: perl-iosocketip.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-mimebase32
+    repo: "https://www.cpan.org/authors/id/R/RE/REHSACK/MIME-Base32-1.303.tar.gz"
+    tracker_file: perl-mimebase32.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-mimebase64
+    repo: "https://www.cpan.org/authors/id/C/CA/CAPOEIRAB/MIME-Base64-3.16.tar.gz"
+    tracker_file: perl-mimebase64.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-netsubnet
+    repo: "https://www.cpan.org/authors/id/J/JU/JUERD/Net-Subnet-1.03.tar.gz"
+    tracker_file: perl-netsubnet.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-posixstrptime
+    repo: "https://www.cpan.org/authors/id/G/GO/GOZER/POSIX-strptime-0.13.tar.gz"
+    tracker_file: perl-posixstrptime.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-socket
+    repo: "https://www.cpan.org/authors/id/P/PE/PEVANS/Socket-2.040.tar.gz"
+    tracker_file: perl-socket.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-termreadline
+    repo: "https://www.cpan.org/authors/id/F/FL/FLORA/Term-ReadLine-1.14.tar.gz"
+    tracker_file: perl-termreadline.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-testharness
+    repo: "https://www.cpan.org/authors/id/L/LE/LEONT/Test-Harness-3.52.tar.gz"
+    tracker_file: perl-testharness.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 0
+
+  - id: perl-uuid
+    repo: "https://www.cpan.org/authors/id/J/JR/JRM/UUID-0.37.tar.gz"
+    tracker_file: perl-uuid.txt
+    version_source: hash-only
+    build_time: 3
+    artifact_type: pkg
+    layer: 0
+
   # ============================================================================
   # Layer 1 — Helper Libraries (no PVE deps)
   # ============================================================================
@@ -200,7 +279,7 @@ packages:
     layer: 1
 
   - id: proxmox-rs
-    repo: "git://git.proxmox.com/git/proxmox-rs.git"
+    repo: "git://git.proxmox.com/git/proxmox.git"
     tracker_file: proxmox-rs.txt
     version_source: git
     build_time: 15
@@ -247,6 +326,80 @@ packages:
     artifact_type: pkg
     layer: 1
 
+  - id: extjs
+    repo: "git://git.proxmox.com/git/extjs.git"
+    tracker_file: extjs.txt
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 1
+
+  - id: fonts-font-logos
+    repo: "git://git.proxmox.com/git/fonts-font-logos.git"
+    tracker_file: fonts-font-logos.txt
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 1
+
+  - id: markedjs
+    repo: "https://github.com/markedjs/marked/releases/download/v17.0.4/marked.min.js"
+    tracker_file: markedjs.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 1
+
+  - id: qrcodejs
+    repo: "git://git.proxmox.com/git/libjs-qrcodejs.git"
+    tracker_file: qrcodejs.txt
+    version_source: git
+    build_time: 2
+    artifact_type: pkg
+    layer: 1
+
+  - id: perlmod
+    repo: "git://git.proxmox.com/git/perlmod.git"
+    tracker_file: perlmod.txt
+    version_source: git
+    build_time: 15
+    artifact_type: pkg
+    layer: 1
+
+  - id: termproxy
+    repo: "git://git.proxmox.com/git/pve-xtermjs.git"
+    tracker_file: termproxy.txt
+    version_source: git
+    build_time: 10
+    artifact_type: pkg
+    layer: 1
+
+  - id: unifont-hex
+    repo: "https://ftp.gnu.org/gnu/unifont/unifont-17.0.03/unifont-17.0.03.tar.gz"
+    tracker_file: unifont-hex.txt
+    version_source: hash-only
+    build_time: 5
+    artifact_type: pkg
+    layer: 1
+
+  - id: vncterm
+    repo: "git://git.proxmox.com/git/vncterm.git"
+    tracker_file: vncterm.txt
+    version_source: git
+    build_time: 8
+    artifact_type: pkg
+    layer: 1
+    depends_on:
+      - unifont-hex
+
+  - id: cstream
+    repo: "https://www.cons.org/cracauer/download/cstream-4.0.0.tar.gz"
+    tracker_file: cstream.txt
+    version_source: hash-only
+    build_time: 2
+    artifact_type: pkg
+    layer: 1
+
   # ============================================================================
   # Layer 2 — Foundation (depends on Layer 0 + 1)
   # ============================================================================
@@ -268,14 +421,24 @@ packages:
       - perl-digest-sha
       - perl-file-readbackwards
       - perl-filesys-df
+      - perl-findbin
       - perl-http-daemon
+      - perl-iosocketip
       - perl-json
       - perl-linux-inotify2
       - perl-mail-spamassassin
+      - perl-mimebase32
+      - perl-mimebase64
+      - perl-netsubnet
       - perl-net-dns
       - perl-net-ip
       - perl-net-ssleay
+      - perl-posixstrptime
+      - perl-socket
+      - perl-termreadline
+      - perl-testharness
       - perl-uri
+      - perl-uuid
       - perl-www-perl
       - perl-xml-parser
       - proxmox-backup-qemu
@@ -341,6 +504,7 @@ packages:
     depends_on:
       - pve-cluster
       - pve-common
+      - pve-rados2
 
   - id: pve-firewall
     repo: "git://git.proxmox.com/git/pve-firewall.git"
@@ -376,6 +540,16 @@ packages:
     depends_on:
       - proxmox-backup-qemu
 
+  - id: pve-rados2
+    repo: "git://git.proxmox.com/git/librados2-perl.git"
+    tracker_file: pve-rados2.txt
+    version_source: git
+    build_time: 8
+    artifact_type: pkg
+    layer: 4
+    depends_on:
+      - pve-common
+
   # ============================================================================
   # Layer 5 — Server & Manager (depends on all above)
   # ============================================================================
@@ -395,7 +569,7 @@ packages:
       - pve-storage
 
   - id: pve-qemu-server
-    repo: "git://git.proxmox.com/git/pve-qemu-server.git"
+    repo: "git://git.proxmox.com/git/qemu-server.git"
     tracker_file: pve-qemu-server.txt
     version_source: git
     build_time: 15
@@ -427,3 +601,35 @@ packages:
       - pve-storage
       - proxmox-i18n
       - proxmox-widget-toolkit
+
+  # ============================================================================
+  # Layer 7 — Web UI Assets (depends on Layer 5+)
+  # ============================================================================
+  # Static web assets and terminal/VNC clients for the PVE web UI.
+  # These are the last packages to be built and installed.
+
+  - id: pve-novnc
+    repo: "git://git.proxmox.com/git/novnc-pve.git"
+    tracker_file: pve-novnc.txt
+    version_source: git
+    build_time: 5
+    artifact_type: pkg
+    layer: 7
+
+  - id: pve-xtermjs
+    repo: "git://git.proxmox.com/git/pve-xtermjs.git"
+    tracker_file: pve-xtermjs.txt
+    version_source: git
+    build_time: 3
+    artifact_type: pkg
+    layer: 7
+    depends_on:
+      - termproxy
+
+  - id: pve-yew-mobile-gui
+    repo: "git://git.proxmox.com/git/ui/pve-yew-mobile-gui.git"
+    tracker_file: pve-yew-mobile-gui.txt
+    version_source: git
+    build_time: 20
+    artifact_type: pkg
+    layer: 7

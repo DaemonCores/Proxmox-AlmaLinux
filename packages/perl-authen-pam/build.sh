@@ -8,7 +8,7 @@
 #   VERSION        — full git commit hash
 #   COMMIT         — same as VERSION
 #   SHORT          — short hash (7 chars)
-#   TARGET_ID      — "almabuilder"
+#   TARGET_ID      — "proxmox-almalinux"
 #   TARGET_ARCH    — "x86_64"
 #   TARGET_CFLAGS  — (empty for AlmaLinux)
 #   TARGET_CXXFLAGS— (empty for AlmaLinux)
@@ -16,20 +16,21 @@
 set -euo pipefail
 
 PKG_NAME="perl-authen-pam"
-REPO_URL="git://git.proxmox.com/git/perl-authen-pam.git"
+CPAN_URL="https://www.cpan.org/authors/id/N/NI/NIKIP/Authen-PAM-0.16.tar.gz"
 
 # ------------------------------------------------------------------
-# 1. Clone source
+# 1. Download source from CPAN
+#     Authen-PAM is a CPAN module, not hosted on git.proxmox.com.
+#     Download the tarball and extract it.
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Cloning source ==="
+echo "=== [$PKG_NAME] Downloading source from CPAN ==="
 WORKDIR="/tmp/src/${PKG_NAME}"
 rm -rf "$WORKDIR"
-git clone "$REPO_URL" "$WORKDIR"
+mkdir -p "$WORKDIR"
+curl -L -o "/tmp/${PKG_NAME}.tar.gz" "$CPAN_URL"
+tar xzf "/tmp/${PKG_NAME}.tar.gz" -C "/tmp/src"
+mv "/tmp/src/Authen-PAM-0.16" "$WORKDIR"
 cd "$WORKDIR"
-
-if [[ -n "${VERSION:-}" ]]; then
-    git checkout "$VERSION" 2>/dev/null || git checkout "${SHORT:-${VERSION:0:7}}" 2>/dev/null || true
-fi
 
 # ------------------------------------------------------------------
 # 2. Build the Perl module

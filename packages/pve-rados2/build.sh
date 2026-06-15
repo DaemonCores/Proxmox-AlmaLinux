@@ -1,19 +1,24 @@
 #!/bin/bash
-# build.sh — pve-common (Layer 2: Core PVE Perl library)
+# build.sh — pve-rados2 (Layer 4: Perl XS module, depends on pve-common + librados)
 #
-# The most critical PVE package — foundation for all Layer 2+ packages.
-# Depends on 17 Layer 0/1 packages (see packages.yml depends_on list).
+# Perl bindings for Ceph RADOS (librados2).
+# XS module linking against librados (Ceph client library).
+# Source from git.proxmox.com (librados2-perl.git).
 #
-# Produces a .pkg.tar intermediate with meta/ + root/ for downstream
-# conversion to RPM (and deb/pacman) via pkg-build-rpm.sh et al.
+# Adapted from proxmox-nixos:
+#   - Nix: perl540.pkgs.toPerlModule wrapping stdenv.mkDerivation
+#   - Nix: buildInputs = [ perl540 ceph.dev ]
+#   - Nix: makeFlags DESTDIR, PREFIX, PERLDIR, PERLSODIR
+#   - Nix: postPatch strips GITVERSION, pkg-info, architecture
+#   - AlmaLinux: use system perl + ceph-devel (librados2-devel)
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="pve-common"
-REPO_URL="git://git.proxmox.com/git/pve-common.git"
+PKG_NAME="pve-rados2"
+REPO_URL="git://git.proxmox.com/git/librados2-perl.git"
 
 # ------------------------------------------------------------------
 # 1. Clone source
@@ -29,100 +34,72 @@ if [[ -n "${VERSION:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------
-# 2. Build
+# 2. Patch Makefile for AlmaLinux build
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Building ==="
-# pve-common uses Makefile with standard Perl build + additional Makefile
-# targets for installing Perl modules and helper scripts.
-make -j"$(nproc)" || true
-# pve-common primarily installs Perl modules; the "build" step is mostly
-# the install phase since it's a pure-Perl + helper-scripts package.
+echo "=== [$PKG_NAME] Patching ==="
+if [[ -f "Makefile" ]]; then
+    sed -i "Makefile" \
+        -e "/GITVERSION/d" \
+        -e "/pkg-info/d" \
+        -e "/architecture/d" 2>/dev/null || true
+fi
 
 # ------------------------------------------------------------------
-# 3. Install to staging root
+# 3. Build
+# ------------------------------------------------------------------
+echo "=== [$PKG_NAME] Building ==="
+make -j"$(nproc)" DESTDIR=/tmp/pkg/${PKG_NAME}/root \
+    PREFIX=/usr \
+    SBINDIR=/usr/bin \
+    PERLDIR=/usr/share/perl5/vendor_perl \
+    PERLSODIR=/usr/lib64/perl5/vendor_perl/auto || true
+
+# ------------------------------------------------------------------
+# 4. Install to staging root
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Installing to staging root ==="
 STAGE="/tmp/pkg/${PKG_NAME}"
-rm -rf "$STAGE"
 mkdir -p "$STAGE/root" "$STAGE/meta"
 
-make install DESTDIR="$STAGE/root" INSTALLDIRS=vendor
+make install DESTDIR="$STAGE/root" \
+    PREFIX=/usr \
+    SBINDIR=/usr/bin \
+    PERLDIR=/usr/share/perl5/vendor_perl \
+    PERLSODIR=/usr/lib64/perl5/vendor_perl/auto || true
 
 find "$STAGE/root" -name '.packlist' -delete 2>/dev/null || true
 find "$STAGE/root" -name 'perllocal.pod' -delete 2>/dev/null || true
 
-# pve-common installs several critical helper scripts and Perl modules:
-#   /usr/bin/pvesh
-#   /usr/share/perl5/PVE/ (core library tree)
-#   /usr/share/perl5/PVE/INotify.pm
-#   /usr/share/perl5/PVE/ProcFSTools.pm
-#   etc.
-# The Makefile handles the full install.
-
 # ------------------------------------------------------------------
-# 4. Determine version from Makefile or debian/changelog
+# 5. Determine version
 # ------------------------------------------------------------------
 PKG_VERSION=""
 if [[ -f "$WORKDIR/debian/changelog" ]]; then
-    # Debian changelog first line: pve-common (8.x.y-z) ...
     PKG_VERSION="$(head -1 "$WORKDIR/debian/changelog" | sed 's/.*(\([^)]*\)).*/\1/')"
-fi
-if [[ -z "${PKG_VERSION:-}" && -f "$WORKDIR/Makefile" ]]; then
-    PKG_VERSION="$(grep '^VERSION' "$WORKDIR/Makefile" | head -1 | sed 's/.*= *//; s/ //g')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
     PKG_VERSION="${SHORT:-0.0.1}"
 fi
-# Append git short hash for traceability
 PKG_VERSION="${PKG_VERSION}+${SHORT:-git}"
 
 # ------------------------------------------------------------------
-# 5. Write meta/ files (intermediate format consumed by pkg-build-rpm.sh)
+# 6. Write meta/ files
 # ------------------------------------------------------------------
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "PVE common Perl library — core utilities, INotify, ProcFSTools, and more" > "$STAGE/meta/description"
+echo "PVE RADOS2 — Perl bindings for Ceph RADOS (librados)" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
-# Dependencies — AlmaLinux RPM names matching packages.yml depends_on
-# These MUST match the package IDs in packages.yml that pve-common depends on,
-# translated to their RPM package names.
 cat > "$STAGE/meta/depends" << 'EOF'
+ceph-devel
 perl
-perl-authen-pam
-perl-crypt-openssl-random
-perl-crypt-openssl-rsa
-perl-data-dumper
-perl-digest-sha
-perl-file-readbackwards
-perl-filesys-df
-perl-findbin
-perl-http-daemon
-perl-iosocketip
-perl-json
-perl-linux-inotify2
-perl-mail-spamassassin
-perl-mimebase32
-perl-mimebase64
-perl-netsubnet
-perl-net-dns
-perl-net-ip
-perl-net-ssleay
-perl-posixstrptime
-perl-socket
-perl-termreadline
-perl-testharness
-perl-uri
-perl-uuid
-perl-www-perl
-perl-xml-parser
-proxmox-backup-qemu
+pve-common
 EOF
 
 # ------------------------------------------------------------------
-# 6. Package as .pkg.tar
+# 7. Package as .pkg.tar
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Creating .pkg.tar ==="
 cd "$STAGE"

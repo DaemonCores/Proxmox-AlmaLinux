@@ -1,7 +1,7 @@
 #!/bin/bash
-# compute-chains.sh — Compute build chains from packages.yml for AlmaBuilder
+# compute-chains.sh — Compute build chains from packages.yml for Proxmox AlmaLinux
 #
-# Simplified from AlmaBuilder: single device (almabuilder),
+# Simplified from Proxmox AlmaLinux: single device (proxmox-almalinux),
 # single architecture (x86_64), single distro (almalinux-10).
 # Reads package definitions, applies bin-packing into 4 parallel chains
 # by build_time, and outputs chain matrices split into
@@ -28,9 +28,9 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Parse packages.yml only (no emulators.yml, no devices.yml)
 PKGS_JSON=$(yq -o=json '.packages' "$ROOT_DIR/packages.yml")
 
-# Single node configuration — hardcoded for AlmaBuilder
+# Single node configuration — hardcoded for Proxmox AlmaLinux
 # TODO: Extract to nodes.yml if multi-node support is needed later
-NODE_ID="almabuilder"
+NODE_ID="proxmox-almalinux"
 NODE_ARCH="x86_64"
 NODE_RUNNER="ubuntu-latest"
 NODE_PLATFORM="linux/amd64"
@@ -275,7 +275,7 @@ for (( i=0; i<pkg_count; i++ )); do
     resolved_cache_key="${resolved_cache_key//\{target_id\}/$TARGET_ID}"
   fi
 
-  # Build JSON entry — single target (almabuilder/x86_64)
+  # Build JSON entry — single target (proxmox-almalinux/x86_64)
   entry=$(jq -n -c \
     --arg pkg_id "$pkg_id" \
     --arg base_dir "$base_dir" \

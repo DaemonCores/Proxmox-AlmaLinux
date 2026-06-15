@@ -1,37 +1,40 @@
 #!/bin/bash
-# build.sh — perl-mail-spamassassin (Layer 0: Perl leaf module, no PVE deps)
+# build.sh — perl-uuid (Layer 0: Perl leaf module, no PVE deps)
+#
+# UUID — DCE compatible Universally Unique Identifier library for Perl.
+# CPAN-sourced: https://metacpan.org/pod/UUID
+# Note: Requires libuuid (e2fsprogs-devel / libuuid-devel on AlmaLinux).
+# Nix adds NIX_CFLAGS_LINK="-luuid" and disables tests (doCheck = false).
 #
 # Produces a .pkg.tar intermediate with meta/ + root/ for downstream
-# conversion to RPM (and deb/pacman) via pkg-build-rpm.sh et al.
+# conversion to RPM via pkg-build-rpm.sh.
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="perl-mail-spamassassin"
-REPO_URL="https://git.proxmox.com/git/proxmox-spamassassin.git"
+PKG_NAME="perl-uuid"
+CPAN_URL="https://www.cpan.org/authors/id/J/JR/JRM/UUID-0.37.tar.gz"
 
 # ------------------------------------------------------------------
-# 1. Clone source
+# 1. Download source from CPAN
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Cloning source ==="
+echo "=== [$PKG_NAME] Downloading source from CPAN ==="
 WORKDIR="/tmp/src/${PKG_NAME}"
 rm -rf "$WORKDIR"
-git clone "$REPO_URL" "$WORKDIR"
+mkdir -p "$WORKDIR"
+curl -L -o "/tmp/${PKG_NAME}.tar.gz" "$CPAN_URL"
+tar xzf "/tmp/${PKG_NAME}.tar.gz" -C "/tmp/src"
+mv "/tmp/src/UUID-0.37" "$WORKDIR"
 cd "$WORKDIR"
 
-if [[ -n "${VERSION:-}" ]]; then
-    git checkout "$VERSION" 2>/dev/null || git checkout "${SHORT:-${VERSION:0:7}}" 2>/dev/null || true
-fi
-
 # ------------------------------------------------------------------
-# 2. Build the Perl module (SpamAssassin from upstream/ in proxmox repo)
-#    The proxmox-spamassassin repo has the SpamAssassin source in
-#    upstream/ plus Proxmox rule updates. Build from upstream/.
+# 2. Build the Perl module (XS — links against libuuid)
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Building ==="
-cd "$WORKDIR/upstream"
+# Nix: NIX_CFLAGS_LINK="-luuid" — on AlmaLinux, libuuid is provided by libuuid-devel
+export LIBS="-luuid"
 perl Makefile.PL INSTALLDIRS=vendor NO_PACKLIST=1 NO_PERLLOCAL=1
 make -j"$(nproc)"
 
@@ -49,14 +52,10 @@ find "$STAGE/root" -name '.packlist' -delete 2>/dev/null || true
 find "$STAGE/root" -name 'perllocal.pod' -delete 2>/dev/null || true
 
 # ------------------------------------------------------------------
-# 4. Determine version
+# 4. Determine version from Makefile or git
 # ------------------------------------------------------------------
-# Try upstream META.yml first, then Makefile, then git
-if [[ -f "$WORKDIR/upstream/META.yml" ]]; then
-    PKG_VERSION="$(grep '^version:' "$WORKDIR/upstream/META.yml" | head -1 | sed 's/version:[[:space:]]*//; s/["[:space:]]//g')"
-fi
-if [[ -z "${PKG_VERSION:-}" ]] && [[ -f "$WORKDIR/upstream/Makefile" ]]; then
-    PKG_VERSION="$(grep '^VERSION' "$WORKDIR/upstream/Makefile" | head -1 | sed 's/.*= *//; s/ //g')"
+if [[ -f "$WORKDIR/Makefile" ]]; then
+    PKG_VERSION="$(grep '^VERSION' "$WORKDIR/Makefile" | head -1 | sed 's/.*= *//; s/ //g')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
     PKG_VERSION="${SHORT:-0.0.1}"
@@ -69,17 +68,13 @@ PKG_VERSION="${PKG_VERSION}-${SHORT:-1}"
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Mail::SpamAssassin — spam email filter" > "$STAGE/meta/description"
+echo "UUID — DCE compatible Universally Unique Identifier library for Perl" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
 perl
-perl-net-dns
-perl-net-ip
-perl-uri
-perl-http-daemon
-perl-json
+libuuid
 EOF
 
 # ------------------------------------------------------------------

@@ -1,19 +1,24 @@
 #!/bin/bash
-# build.sh — proxmox-rs (Layer 1: Rust library, Proxmox framework)
+# build.sh — vncterm (Layer 1: C binary, no PVE deps)
 #
-# Core Rust library for Proxmox — provides shared types, utilities, and APIs
-# consumed by proxmox-perl-rs and other Rust-based PVE components.
+# VNC terminal emulator — provides VNC access to container/VM consoles.
+# C binary that links against libvncserver, gnutls, libjpeg, libpng, libnsl.
+# Source from git.proxmox.com.
+# Depends on unifont-hex for font data at build time.
 #
-# Adapted from proxmox-nixos: rustPlatform.buildRustPackage
-# AlmaLinux: cargo build --release, system deps
+# Adapted from proxmox-nixos:
+#   - Nix: stdenv.mkDerivation with libvncserver (patched with tls-auth), gnutls, libjpeg, libnsl, libpng
+#   - Nix: postPatch strips architecture.mk, pkg-info, patches Makefile extensively
+#   - Nix: makeFlags VNCLIB/VNCDIR, DESTDIR=$(out)
+#   - AlmaLinux: use system libvncserver, patch Makefile for FHS paths
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="proxmox-rs"
-REPO_URL="https://git.proxmox.com/git/proxmox.git"
+PKG_NAME="vncterm"
+REPO_URL="git://git.proxmox.com/git/vncterm.git"
 
 # ------------------------------------------------------------------
 # 1. Clone source
@@ -29,42 +34,53 @@ if [[ -n "${VERSION:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------
-# 2. Apply patches from debian/patches/series
+# 2. Patch Makefile for AlmaLinux build
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Applying patches ==="
-if [[ -f "$WORKDIR/debian/patches/series" ]]; then
-    while IFS= read -r patch; do
-        [[ -z "$patch" || "$patch" =~ ^# ]] && continue
-        echo "  Applying: $patch"
-        patch -p1 -d "$WORKDIR" -i "$WORKDIR/debian/patches/$patch" || true
-    done < "$WORKDIR/debian/patches/series"
+echo "=== [$PKG_NAME] Patching ==="
+if [[ -f "Makefile" ]]; then
+    sed -i "Makefile" \
+        -e "/architecture.mk/d" \
+        -e "/pkg-info/d" \
+        -e "s|/usr/share/unifont/unifont.hex|/usr/share/unifont/unifont.hex|g" \
+        -e "s|usr/||g" \
+        -e "s/Werror/Wno-error/" \
+        -e "s|wchardata.c|/usr/share/unifont/wchardata.c|g" \
+        -e "/pod2man/d" \
+        -e "/man1/d" 2>/dev/null || true
+fi
+
+# Apply TLS auth plugin patches from vncpatches/ if they exist
+if [[ -d "vncpatches" ]]; then
+    for patch in vncpatches/*.patch; do
+        [[ -f "$patch" ]] && patch -p1 -i "$patch" || true
+    done
 fi
 
 # ------------------------------------------------------------------
-# 3. Build (Rust — cargo build --release)
+# 3. Build
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Building ==="
-# proxmox-rs is a workspace of Rust crates
-cargo build --release
+# Build vncterm binary linking against system libvncserver
+# Nix patches libvncserver with tls-auth-plugin; on AlmaLinux we use system libvncserver
+make -j"$(nproc)" VNCLIB="-lvncserver" VNCDIR="/usr/include" DESTDIR="/tmp/pkg/${PKG_NAME}/root" || true
 
 # ------------------------------------------------------------------
 # 4. Install to staging root
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Installing to staging root ==="
 STAGE="/tmp/pkg/${PKG_NAME}"
-rm -rf "$STAGE"
-mkdir -p "$STAGE/root/usr/lib" "$STAGE/meta"
+mkdir -p "$STAGE/root/usr/bin" "$STAGE/meta"
 
-# Install the built Rust libraries (.rlib/.so) to staging
-# The primary output is static/shared Rust libraries consumed at build time
-# by downstream crates (proxmox-perl-rs, pve-qemu, etc.)
-cargo install --path . --root "$STAGE/root/usr" --locked || true
+make install DESTDIR="$STAGE/root" PREFIX=/usr SBINDIR=/usr/bin || true
 
-# For library crates, copy the compiled artifacts
-if [[ -d "$WORKDIR/target/release" ]]; then
-    mkdir -p "$STAGE/root/usr/lib/proxmox-rs"
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.rlib' -exec cp {} "$STAGE/root/usr/lib/proxmox-rs/" \; 2>/dev/null || true
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.so' -exec cp {} "$STAGE/root/usr/lib/" \; 2>/dev/null || true
+# Ensure binary is installed
+if [[ -f "vncterm" ]] && [[ ! -f "$STAGE/root/usr/bin/vncterm" ]]; then
+    install -Dm755 vncterm "$STAGE/root/usr/bin/vncterm"
+fi
+
+# Patch /usr reference in binary
+if [[ -f "$STAGE/root/usr/bin/vncterm" ]]; then
+    sed -i "$STAGE/root/usr/bin/vncterm" -e "s|/usr|$STAGE/root/usr|g" 2>/dev/null || true
 fi
 
 # ------------------------------------------------------------------
@@ -73,9 +89,6 @@ fi
 PKG_VERSION=""
 if [[ -f "$WORKDIR/debian/changelog" ]]; then
     PKG_VERSION="$(head -1 "$WORKDIR/debian/changelog" | sed 's/.*(\([^)]*\)).*/\1/')"
-fi
-if [[ -z "${PKG_VERSION:-}" ]]; then
-    PKG_VERSION="$(grep '^version' "$WORKDIR/Cargo.toml" | head -1 | sed 's/.*= *"*\([^"]*\)"*.*/\1/')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
     PKG_VERSION="${SHORT:-0.0.1}"
@@ -88,14 +101,16 @@ PKG_VERSION="${PKG_VERSION}+${SHORT:-git}"
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Proxmox Rust framework — core types, utilities, and API libraries" > "$STAGE/meta/description"
+echo "vncterm — VNC terminal emulator for Proxmox VE console access" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
-cargo
-openssl-libs
-pkgconf-pkg-config
+gnutls
+libjpeg
+libpng
+libvncserver
+unifont-hex
 EOF
 
 # ------------------------------------------------------------------

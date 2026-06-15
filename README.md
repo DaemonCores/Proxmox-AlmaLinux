@@ -1,8 +1,8 @@
-# AlmaBuilder
+# Proxmox Alma Packages
 
 > Proxmox VE ported to AlmaLinux as an atomic bootc image.
 
-AlmaBuilder ports the Proxmox VE (PVE) userspace to RPM format on top of the
+Proxmox AlmaLinux ports the Proxmox VE (PVE) userspace to RPM format on top of the
 stock AlmaLinux EL kernel with OpenZFS DKMS — bypassing the `pve-kernel`
 entirely. The result is a bootc-compatible container image that can be
 installed via Anaconda kickstart or updated atomically through the bootc
@@ -47,13 +47,13 @@ which proves that PVE core is portable without `pve-kernel`.
 ### Docker (local)
 
 ```bash
-docker build -t almabuilder .
+docker build -t proxmox-almalinux .
 ```
 
 ### GitHub Actions (CI)
 
 1. **Container image** — triggered on push to `Dockerfile` / `.dockerignore` / `src/`:
-   - Builds the bootc image and pushes to `ghcr.io/daemoncores/almabuilder`
+   - Builds the bootc image and pushes to `ghcr.io/daemoncores/proxmox-almalinux`
    - Workflow: `.github/workflows/bootc-build.yml`
 
 2. **ISO** — manual dispatch only:
@@ -63,7 +63,7 @@ docker build -t almabuilder .
 ## Package Build Pipeline
 
 Packages are defined in `packages.yml` with a layered dependency graph
-(Layer 0–5). The CI iterates over entries, resolves dependencies from
+(Layer 0–7). The CI iterates over entries, resolves dependencies from
 `depends_on` fields, and schedules build waves automatically.
 
 To add a new package:
@@ -76,7 +76,7 @@ To add a new package:
 | Project | Role |
 |---------|------|
 | [proxmox-nixos](https://github.com/SaumonNet/proxmox-nixos) | Complete PVE package graph and build orchestration reference (50+ Nix expressions) |
-| `AlmaBuilder-Packages` | Reusable CI/CD plumbing for RPM package conversion (30–40% of infrastructure scripts) |
+| `Proxmox AlmaLinux` | Reusable CI/CD plumbing for RPM package conversion (30–40% of infrastructure scripts) |
 
 ## Status
 

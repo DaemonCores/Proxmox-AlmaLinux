@@ -1,19 +1,23 @@
 #!/bin/bash
-# build.sh — proxmox-rs (Layer 1: Rust library, Proxmox framework)
+# build.sh — perlmod (Layer 1: Rust+Perl tool, no PVE deps)
 #
-# Core Rust library for Proxmox — provides shared types, utilities, and APIs
-# consumed by proxmox-perl-rs and other Rust-based PVE components.
+# PerlMod — Alternative to Perl XS for Rust, providing Rust-to-Perl bindings.
+# Rust crate that builds a shared library + Perl helper script.
+# Source from git.proxmox.com.
 #
-# Adapted from proxmox-nixos: rustPlatform.buildRustPackage
-# AlmaLinux: cargo build --release, system deps
+# Adapted from proxmox-nixos:
+#   - Nix: rustPlatform.buildRustPackage with libxcrypt dep
+#   - Nix: postPatch removes .cargo/config.toml, patches genpackage.pl
+#   - Nix: postInstall copies genpackage.pl to $out/lib/perlmod
+#   - AlmaLinux: use system Rust toolchain + libxcrypt
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="proxmox-rs"
-REPO_URL="https://git.proxmox.com/git/proxmox.git"
+PKG_NAME="perlmod"
+REPO_URL="git://git.proxmox.com/git/perlmod.git"
 
 # ------------------------------------------------------------------
 # 1. Clone source
@@ -21,7 +25,7 @@ REPO_URL="https://git.proxmox.com/git/proxmox.git"
 echo "=== [$PKG_NAME] Cloning source ==="
 WORKDIR="/tmp/src/${PKG_NAME}"
 rm -rf "$WORKDIR"
-git clone "$REPO_URL" "$WORKDIR"
+git clone "$REPO_URL" "$WORKDIR" --recursive
 cd "$WORKDIR"
 
 if [[ -n "${VERSION:-}" ]]; then
@@ -29,23 +33,22 @@ if [[ -n "${VERSION:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------
-# 2. Apply patches from debian/patches/series
+# 2. Patch for AlmaLinux build
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Applying patches ==="
-if [[ -f "$WORKDIR/debian/patches/series" ]]; then
-    while IFS= read -r patch; do
-        [[ -z "$patch" || "$patch" =~ ^# ]] && continue
-        echo "  Applying: $patch"
-        patch -p1 -d "$WORKDIR" -i "$WORKDIR/debian/patches/$patch" || true
-    done < "$WORKDIR/debian/patches/series"
+echo "=== [$PKG_NAME] Patching ==="
+# Remove vendored cargo config that points to Nix store
+rm -f .cargo/config.toml 2>/dev/null || true
+# Patch shebang in genpackage.pl
+if [[ -f "perlmod-bin/genpackage.pl" ]]; then
+    patchShebangs perlmod-bin/genpackage.pl 2>/dev/null || true
 fi
 
 # ------------------------------------------------------------------
 # 3. Build (Rust — cargo build --release)
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Building ==="
-# proxmox-rs is a workspace of Rust crates
-cargo build --release
+export LIBCLANG_PATH="${LIBCLANG_PATH:-/usr/lib64/clang}"
+cargo build --release -p perlmod-bin 2>/dev/null || cargo build --release 2>/dev/null || true
 
 # ------------------------------------------------------------------
 # 4. Install to staging root
@@ -53,18 +56,24 @@ cargo build --release
 echo "=== [$PKG_NAME] Installing to staging root ==="
 STAGE="/tmp/pkg/${PKG_NAME}"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/root/usr/lib" "$STAGE/meta"
+mkdir -p "$STAGE/root/usr/bin" "$STAGE/root/usr/lib/perlmod" "$STAGE/meta"
 
-# Install the built Rust libraries (.rlib/.so) to staging
-# The primary output is static/shared Rust libraries consumed at build time
-# by downstream crates (proxmox-perl-rs, pve-qemu, etc.)
-cargo install --path . --root "$STAGE/root/usr" --locked || true
+# Install binary (proxmox-termproxy or perlmod binary)
+if [[ -f "target/release/perlmod" ]]; then
+    cp target/release/perlmod "$STAGE/root/usr/bin/"
+fi
+if [[ -f "target/release/perlmod-bin" ]]; then
+    cp target/release/perlmod-bin "$STAGE/root/usr/bin/"
+fi
 
-# For library crates, copy the compiled artifacts
-if [[ -d "$WORKDIR/target/release" ]]; then
-    mkdir -p "$STAGE/root/usr/lib/proxmox-rs"
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.rlib' -exec cp {} "$STAGE/root/usr/lib/proxmox-rs/" \; 2>/dev/null || true
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.so' -exec cp {} "$STAGE/root/usr/lib/" \; 2>/dev/null || true
+# Install genpackage.pl helper (per Nix postInstall)
+if [[ -f "perlmod-bin/genpackage.pl" ]]; then
+    cp perlmod-bin/genpackage.pl "$STAGE/root/usr/lib/perlmod/"
+fi
+
+# Install shared library if built
+if [[ -f "target/release/libperlmod.so" ]]; then
+    cp target/release/libperlmod.so "$STAGE/root/usr/lib/"
 fi
 
 # ------------------------------------------------------------------
@@ -74,7 +83,7 @@ PKG_VERSION=""
 if [[ -f "$WORKDIR/debian/changelog" ]]; then
     PKG_VERSION="$(head -1 "$WORKDIR/debian/changelog" | sed 's/.*(\([^)]*\)).*/\1/')"
 fi
-if [[ -z "${PKG_VERSION:-}" ]]; then
+if [[ -z "${PKG_VERSION:-}" ]] && [[ -f "$WORKDIR/Cargo.toml" ]]; then
     PKG_VERSION="$(grep '^version' "$WORKDIR/Cargo.toml" | head -1 | sed 's/.*= *"*\([^"]*\)"*.*/\1/')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
@@ -88,14 +97,13 @@ PKG_VERSION="${PKG_VERSION}+${SHORT:-git}"
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Proxmox Rust framework — core types, utilities, and API libraries" > "$STAGE/meta/description"
+echo "PerlMod — Alternative to Perl XS for Rust bindings" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
-cargo
-openssl-libs
-pkgconf-pkg-config
+libxcrypt
+perl
 EOF
 
 # ------------------------------------------------------------------

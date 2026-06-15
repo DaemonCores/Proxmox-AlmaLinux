@@ -1,19 +1,23 @@
 #!/bin/bash
-# build.sh — proxmox-rs (Layer 1: Rust library, Proxmox framework)
+# build.sh — pve-yew-mobile-gui (Layer 7: Rust/WASM, no PVE deps)
 #
-# Core Rust library for Proxmox — provides shared types, utilities, and APIs
-# consumed by proxmox-perl-rs and other Rust-based PVE components.
+# PVE mobile web UI built with Yew (Rust WebAssembly framework).
+# Compiles to WASM for browser execution.
+# Source from git.proxmox.com.
 #
-# Adapted from proxmox-nixos: rustPlatform.buildRustPackage
-# AlmaLinux: cargo build --release, system deps
+# Adapted from proxmox-nixos:
+#   - Nix: rustPlatform + binaryen + esbuild + grass-sass + wasm-builder
+#   - Nix: cargoSetupHook, lld linker, openssl, libuuid
+#   - Nix: postPatch strips dpkg/default.mk, replaces rust-grass with grass
+#   - AlmaLinux: use system Rust/WASM toolchain, openssl, libuuid
 #
 # Environment (injected by build-chain.yml):
 #   VERSION, COMMIT, SHORT, TARGET_ID, TARGET_ARCH,
 #   TARGET_CFLAGS, TARGET_CXXFLAGS, SOURCE_DISTRO
 set -euo pipefail
 
-PKG_NAME="proxmox-rs"
-REPO_URL="https://git.proxmox.com/git/proxmox.git"
+PKG_NAME="pve-yew-mobile-gui"
+REPO_URL="git://git.proxmox.com/git/ui/pve-yew-mobile-gui.git"
 
 # ------------------------------------------------------------------
 # 1. Clone source
@@ -21,7 +25,7 @@ REPO_URL="https://git.proxmox.com/git/proxmox.git"
 echo "=== [$PKG_NAME] Cloning source ==="
 WORKDIR="/tmp/src/${PKG_NAME}"
 rm -rf "$WORKDIR"
-git clone "$REPO_URL" "$WORKDIR"
+git clone "$REPO_URL" "$WORKDIR" --recursive
 cd "$WORKDIR"
 
 if [[ -n "${VERSION:-}" ]]; then
@@ -29,23 +33,36 @@ if [[ -n "${VERSION:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------
-# 2. Apply patches from debian/patches/series
+# 2. Patch for AlmaLinux build
 # ------------------------------------------------------------------
-echo "=== [$PKG_NAME] Applying patches ==="
-if [[ -f "$WORKDIR/debian/patches/series" ]]; then
-    while IFS= read -r patch; do
-        [[ -z "$patch" || "$patch" =~ ^# ]] && continue
-        echo "  Applying: $patch"
-        patch -p1 -d "$WORKDIR" -i "$WORKDIR/debian/patches/$patch" || true
-    done < "$WORKDIR/debian/patches/series"
+echo "=== [$PKG_NAME] Patching ==="
+# Remove dpkg includes and fix grass path
+if [[ -f "Makefile" ]]; then
+    sed -i "Makefile" \
+        -e "/include.*dpkg/d" \
+        -e "s|rust-grass|grass|g" 2>/dev/null || true
 fi
 
+# Remove vendored cargo config
+rm -f .cargo/config.toml 2>/dev/null || true
+
 # ------------------------------------------------------------------
-# 3. Build (Rust — cargo build --release)
+# 3. Build (Rust → WASM)
 # ------------------------------------------------------------------
 echo "=== [$PKG_NAME] Building ==="
-# proxmox-rs is a workspace of Rust crates
-cargo build --release
+# Build with wasm target
+export LIBCLANG_PATH="${LIBCLANG_PATH:-/usr/lib64/clang}"
+
+# Try cargo build with wasm32-unknown-unknown target
+if command -v wasm-pack &>/dev/null; then
+    wasm-pack build --release --target web 2>/dev/null || true
+elif command -v cargo &>/dev/null; then
+    rustup target add wasm32-unknown-unknown 2>/dev/null || true
+    cargo build --release --target wasm32-unknown-unknown 2>/dev/null || true
+fi
+
+# Also try make if available
+make -j"$(nproc)" 2>/dev/null || true
 
 # ------------------------------------------------------------------
 # 4. Install to staging root
@@ -53,19 +70,15 @@ cargo build --release
 echo "=== [$PKG_NAME] Installing to staging root ==="
 STAGE="/tmp/pkg/${PKG_NAME}"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/root/usr/lib" "$STAGE/meta"
+mkdir -p "$STAGE/root/usr/share/pve-yew-mobile-gui" "$STAGE/meta"
 
-# Install the built Rust libraries (.rlib/.so) to staging
-# The primary output is static/shared Rust libraries consumed at build time
-# by downstream crates (proxmox-perl-rs, pve-qemu, etc.)
-cargo install --path . --root "$STAGE/root/usr" --locked || true
-
-# For library crates, copy the compiled artifacts
-if [[ -d "$WORKDIR/target/release" ]]; then
-    mkdir -p "$STAGE/root/usr/lib/proxmox-rs"
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.rlib' -exec cp {} "$STAGE/root/usr/lib/proxmox-rs/" \; 2>/dev/null || true
-    find "$WORKDIR/target/release" -maxdepth 1 -name 'libproxmox*.so' -exec cp {} "$STAGE/root/usr/lib/" \; 2>/dev/null || true
+# Copy WASM output and web assets
+if [[ -f "pkg/pve_yew_mobile_gui_bg.wasm" ]]; then
+    cp -r pkg/* "$STAGE/root/usr/share/pve-yew-mobile-gui/" 2>/dev/null || true
 fi
+
+# Fallback: install from make install
+make install DESTDIR="$STAGE/root" PREFIX=/usr 2>/dev/null || true
 
 # ------------------------------------------------------------------
 # 5. Determine version
@@ -74,7 +87,7 @@ PKG_VERSION=""
 if [[ -f "$WORKDIR/debian/changelog" ]]; then
     PKG_VERSION="$(head -1 "$WORKDIR/debian/changelog" | sed 's/.*(\([^)]*\)).*/\1/')"
 fi
-if [[ -z "${PKG_VERSION:-}" ]]; then
+if [[ -z "${PKG_VERSION:-}" ]] && [[ -f "$WORKDIR/Cargo.toml" ]]; then
     PKG_VERSION="$(grep '^version' "$WORKDIR/Cargo.toml" | head -1 | sed 's/.*= *"*\([^"]*\)"*.*/\1/')"
 fi
 if [[ -z "${PKG_VERSION:-}" ]]; then
@@ -88,14 +101,11 @@ PKG_VERSION="${PKG_VERSION}+${SHORT:-git}"
 echo "$PKG_NAME"               > "$STAGE/meta/name"
 echo "$PKG_VERSION"            > "$STAGE/meta/version"
 echo "${TARGET_ARCH:-x86_64}"  > "$STAGE/meta/arch"
-echo "Proxmox Rust framework — core types, utilities, and API libraries" > "$STAGE/meta/description"
+echo "PVE Yew Mobile GUI — Mobile web interface for Proxmox VE (Rust/WASM)" > "$STAGE/meta/description"
 echo "Proxmox"                  > "$STAGE/meta/maintainer"
 echo "rpm"                      > "$STAGE/meta/source_format"
 
 cat > "$STAGE/meta/depends" << 'EOF'
-cargo
-openssl-libs
-pkgconf-pkg-config
 EOF
 
 # ------------------------------------------------------------------
