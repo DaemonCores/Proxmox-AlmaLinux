@@ -33,55 +33,49 @@ packages:
     layer: 0
 
   - id: perl-crypt-openssl-random
-    repo: "https://git.proxmox.com/git/perl-crypt-openssl-random.git"
-    tracker_file: perl-crypt-openssl-random.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/R/RU/RURBAN/Crypt-OpenSSL-Random-0.17.tar.gz"
+    version_source: hash-only
     build_time: 3
     artifact_type: pkg
     layer: 0
 
   - id: perl-crypt-openssl-rsa
-    repo: "https://git.proxmox.com/git/perl-crypt-openssl-rsa.git"
-    tracker_file: perl-crypt-openssl-rsa.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/T/TI/TIMLEGGE/Crypt-OpenSSL-RSA-0.41.tar.gz"
+    version_source: hash-only
     build_time: 3
     artifact_type: pkg
     layer: 0
 
   - id: perl-data-dumper
-    repo: "https://git.proxmox.com/git/perl-data-dumper.git"
-    tracker_file: perl-data-dumper.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/N/NW/NWCLARK/Data-Dumper-2.183.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
 
   - id: perl-digest-sha
-    repo: "https://git.proxmox.com/git/perl-digest-sha.git"
-    tracker_file: perl-digest-sha.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/M/MS/MSHELOR/Digest-SHA-6.04.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
 
   - id: perl-file-readbackwards
-    repo: "https://git.proxmox.com/git/perl-file-readbackwards.git"
-    tracker_file: perl-file-readbackwards.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/P/PL/PLICEASE/File-ReadBackwards-1.06.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
 
   - id: perl-filesys-df
-    repo: "https://git.proxmox.com/git/perl-filesys-df.git"
-    tracker_file: perl-filesys-df.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/I/IG/IGUTHRIE/Filesys-Df-0.92.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
 
   - id: perl-http-daemon
-    repo: "https://git.proxmox.com/git/perl-http-daemon.git"
+    repo: "https://git.proxmox.com/git/libhttp-daemon-perl.git"
     tracker_file: perl-http-daemon.txt
     version_source: git
     build_time: 3
@@ -89,17 +83,15 @@ packages:
     layer: 0
 
   - id: perl-json
-    repo: "https://git.proxmox.com/git/perl-json.git"
-    tracker_file: perl-json.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/I/IS/ISHIGAKI/JSON-4.11.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
 
   - id: perl-linux-inotify2
-    repo: "https://git.proxmox.com/git/perl-linux-inotify2.git"
-    tracker_file: perl-linux-inotify2.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/M/ML/MLEHMANN/Linux-Inotify2-2.3.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
@@ -113,31 +105,28 @@ packages:
     layer: 0
 
   - id: perl-net-dns
-    repo: "https://git.proxmox.com/git/perl-net-dns.git"
-    tracker_file: perl-net-dns.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/N/NL/NLNETLABS/Net-DNS-1.55.tar.gz"
+    version_source: hash-only
     build_time: 3
     artifact_type: pkg
     layer: 0
 
   - id: perl-net-ip
-    repo: "https://git.proxmox.com/git/perl-net-ip.git"
-    tracker_file: perl-net-ip.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/M/MA/MANU/Net-IP-1.26.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
 
   - id: perl-net-ssleay
-    repo: "https://git.proxmox.com/git/perl-net-ssleay.git"
-    tracker_file: perl-net-ssleay.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/C/CH/CHRISN/Net-SSLeay-1.96.tar.gz"
+    version_source: hash-only
     build_time: 3
     artifact_type: pkg
     layer: 0
 
   - id: perl-proxmox-acme
-    repo: "https://git.proxmox.com/git/perl-proxmox-acme.git"
+    repo: "https://git.proxmox.com/git/proxmox-acme.git"
     tracker_file: perl-proxmox-acme.txt
     version_source: git
     build_time: 3
@@ -145,25 +134,22 @@ packages:
     layer: 0
 
   - id: perl-uri
-    repo: "https://git.proxmox.com/git/perl-uri.git"
-    tracker_file: perl-uri.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/O/OA/OALDERS/URI-5.35.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
 
   - id: perl-www-perl
-    repo: "https://git.proxmox.com/git/perl-www-perl.git"
-    tracker_file: perl-www-perl.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/O/OA/OALDERS/libwww-perl-6.83.tar.gz"
+    version_source: hash-only
     build_time: 3
     artifact_type: pkg
     layer: 0
 
   - id: perl-xml-parser
-    repo: "https://git.proxmox.com/git/perl-xml-parser.git"
-    tracker_file: perl-xml-parser.txt
-    version_source: git
+    repo: "https://cpan.metacpan.org/authors/id/T/TO/TODDR/XML-Parser-2.59.tar.gz"
+    version_source: hash-only
     build_time: 2
     artifact_type: pkg
     layer: 0
@@ -343,7 +329,7 @@ packages:
     layer: 1
 
   - id: markedjs
-    repo: "https://github.com/markedjs/marked/releases/download/v17.0.4/marked.min.js"
+    repo: "https://cdn.jsdelivr.net/npm/marked@17.0.4/lib/marked.umd.min.js"
     tracker_file: markedjs.txt
     version_source: hash-only
     build_time: 2

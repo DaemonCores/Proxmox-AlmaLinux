@@ -7,11 +7,11 @@ PKG_NAME="markedjs"
 BUILD_TYPE="node-hash"
 PKG_DESCRIPTION="Marked — Markdown parser and compiler for JavaScript"
 MARKED_VERSION="17.0.4"
-MARKED_URL="https://github.com/markedjs/marked/releases/download/v17.0.4/marked.min.js"
-MARKED_FALLBACK_URL="https://cdn.jsdelivr.net/npm/marked@17.0.4/marked.min.js"
-DOWNLOAD_URL="https://github.com/markedjs/marked/releases/download/v17.0.4/marked.min.js"
+MARKED_URL="https://cdn.jsdelivr.net/npm/marked@17.0.4/lib/marked.umd.min.js"
+MARKED_FALLBACK_URL="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.min.js"
+DOWNLOAD_URL="https://cdn.jsdelivr.net/npm/marked@17.0.4/lib/marked.umd.min.js"
 DOWNLOAD_VERSION="17.0.4"
-DOWNLOAD_FALLBACK_URL="https://cdn.jsdelivr.net/npm/marked@17.0.4/marked.min.js"
+DOWNLOAD_FALLBACK_URL="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.min.js"
 
 # Override: download pre-built marked.min.js
 fetch_source_download() {
