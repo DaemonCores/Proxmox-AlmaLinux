@@ -4,7 +4,7 @@
 # Type: rust-wasm
 
 PKG_NAME="pve-yew-mobile-gui"
-REPO_URL="git://git.proxmox.com/git/ui/pve-yew-mobile-gui.git"
+REPO_URL="https://git.proxmox.com/git/ui/pve-yew-mobile-gui.git"
 BUILD_TYPE="rust-wasm"
 CLONE_RECURSIVE="1"
 PKG_DESCRIPTION="PVE Yew Mobile GUI — Mobile web interface (Rust/WASM)"

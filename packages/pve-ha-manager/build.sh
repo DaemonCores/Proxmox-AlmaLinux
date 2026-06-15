@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-ha-manager"
-REPO_URL="git://git.proxmox.com/git/pve-ha-manager.git"
+REPO_URL="https://git.proxmox.com/git/pve-ha-manager.git"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE HA manager — high availability for VMs and containers"

@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-xml-parser"
-REPO_URL="git://git.proxmox.com/git/perl-xml-parser.git"
+REPO_URL="https://git.proxmox.com/git/perl-xml-parser.git"
 PKG_DESCRIPTION="XML::Parser - XML parsing for Perl"
 
 source ../../scripts/build-template.sh

@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-filesys-df"
-REPO_URL="git://git.proxmox.com/git/perl-filesys-df.git"
+REPO_URL="https://git.proxmox.com/git/perl-filesys-df.git"
 PKG_DESCRIPTION="Filesys::Df - disk space information for Perl"
 
 source ../../scripts/build-template.sh

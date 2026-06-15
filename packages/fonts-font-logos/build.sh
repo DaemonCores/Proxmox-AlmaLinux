@@ -4,7 +4,7 @@
 # Type: font
 
 PKG_NAME="fonts-font-logos"
-REPO_URL="git://git.proxmox.com/git/fonts-font-logos.git"
+REPO_URL="https://git.proxmox.com/git/fonts-font-logos.git"
 BUILD_TYPE="font"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="Font logos — Font Awesome + custom font icons for PVE web UI"

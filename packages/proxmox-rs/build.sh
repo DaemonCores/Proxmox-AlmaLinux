@@ -4,7 +4,7 @@
 # Type: rust-workspace
 
 PKG_NAME="proxmox-rs"
-REPO_URL="git://git.proxmox.com/git/proxmox.git"
+REPO_URL="https://git.proxmox.com/git/proxmox.git"
 BUILD_TYPE="rust-workspace"
 PKG_DESCRIPTION="Proxmox Rust framework — core types, utilities, and API libraries"
 PKG_DEPENDS=$'cargo

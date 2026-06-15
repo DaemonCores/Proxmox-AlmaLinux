@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-storage"
-REPO_URL="git://git.proxmox.com/git/pve-storage.git"
+REPO_URL="https://git.proxmox.com/git/pve-storage.git"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE storage library — ZFS, LVM, Ceph RBD, iSCSI, NFS, and more"

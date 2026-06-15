@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-data-dumper"
-REPO_URL="git://git.proxmox.com/git/perl-data-dumper.git"
+REPO_URL="https://git.proxmox.com/git/perl-data-dumper.git"
 PKG_DESCRIPTION="Data::Dumper - stringified Perl data structures"
 
 source ../../scripts/build-template.sh

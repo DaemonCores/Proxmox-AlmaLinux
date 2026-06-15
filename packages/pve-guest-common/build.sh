@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-guest-common"
-REPO_URL="git://git.proxmox.com/git/pve-guest-common.git"
+REPO_URL="https://git.proxmox.com/git/pve-guest-common.git"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE guest-related Perl modules — common code for guest agents"

@@ -4,7 +4,7 @@
 # Type: node
 
 PKG_NAME="proxmox-widget-toolkit"
-REPO_URL="git://git.proxmox.com/git/proxmox-widget-toolkit.git"
+REPO_URL="https://git.proxmox.com/git/proxmox-widget-toolkit.git"
 BUILD_TYPE="node"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="Proxmox ExtJS widget toolkit — JS/CSS for PVE web UI"

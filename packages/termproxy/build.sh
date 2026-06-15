@@ -4,7 +4,7 @@
 # Type: rust-submodules
 
 PKG_NAME="termproxy"
-REPO_URL="git://git.proxmox.com/git/pve-xtermjs.git"
+REPO_URL="https://git.proxmox.com/git/pve-xtermjs.git"
 BUILD_TYPE="rust-submodules"
 BUILD_SUBDIR="termproxy"
 CLONE_RECURSIVE="1"

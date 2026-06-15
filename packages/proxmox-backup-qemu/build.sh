@@ -4,7 +4,7 @@
 # Type: rust-submodules
 
 PKG_NAME="proxmox-backup-qemu"
-REPO_URL="git://git.proxmox.com/git/proxmox-backup-qemu.git"
+REPO_URL="https://git.proxmox.com/git/proxmox-backup-qemu.git"
 BUILD_TYPE="rust-submodules"
 CLONE_RECURSIVE="1"
 PKG_DESCRIPTION="Proxmox Backup client library for QEMU — Rust shared library"

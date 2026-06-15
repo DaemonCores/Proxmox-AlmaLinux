@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-net-ssleay"
-REPO_URL="git://git.proxmox.com/git/perl-net-ssleay.git"
+REPO_URL="https://git.proxmox.com/git/perl-net-ssleay.git"
 PKG_DESCRIPTION="Net::SSLeay - Perl extension for OpenSSL"
 
 source ../../scripts/build-template.sh

@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-http-server"
-REPO_URL="git://git.proxmox.com/git/pve-http-server.git"
+REPO_URL="https://git.proxmox.com/git/pve-http-server.git"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE HTTP server — serves the Proxmox VE web UI and REST API"

@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-crypt-openssl-random"
-REPO_URL="git://git.proxmox.com/git/perl-crypt-openssl-random.git"
+REPO_URL="https://git.proxmox.com/git/perl-crypt-openssl-random.git"
 PKG_DESCRIPTION="Crypt::OpenSSL::Random - OpenSSL random number generator for Perl"
 
 source ../../scripts/build-template.sh

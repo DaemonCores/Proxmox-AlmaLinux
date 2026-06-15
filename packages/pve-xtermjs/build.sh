@@ -4,7 +4,7 @@
 # Type: node
 
 PKG_NAME="pve-xtermjs"
-REPO_URL="git://git.proxmox.com/git/pve-xtermjs.git"
+REPO_URL="https://git.proxmox.com/git/pve-xtermjs.git"
 BUILD_TYPE="node"
 PKG_DESCRIPTION="PVE xterm.js — Web-based terminal emulator for Proxmox VE"
 PKG_DEPENDS=$'termproxy'

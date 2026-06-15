@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-container"
-REPO_URL="git://git.proxmox.com/git/pve-container.git"
+REPO_URL="https://git.proxmox.com/git/pve-container.git"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE container manager — LXC container management (pct command)"

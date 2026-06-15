@@ -233,7 +233,7 @@ RUN dnf install -y \
 
 Each job runs in a Docker container based on the image above. Artifacts (built RPMs) are passed between jobs via GitHub Actions artifacts or a shared repo.
 
-**Source acquisition**: each PVE package is fetched from `git://git.proxmox.com/git/<package>.git` at a pinned commit (matching the version targeted). The `debian/patches/series` file in each repo lists the PVE-specific patches to apply.
+**Source acquisition**: each PVE package is fetched from `https://git.proxmox.com/git/<package>.git` at a pinned commit (matching the version targeted). The `debian/patches/series` file in each repo lists the PVE-specific patches to apply.
 
 ### 4.3 Kernel & Storage
 

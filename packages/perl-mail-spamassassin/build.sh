@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-mail-spamassassin"
-REPO_URL="git://git.proxmox.com/git/proxmox-spamassassin.git"
+REPO_URL="https://git.proxmox.com/git/proxmox-spamassassin.git"
 PKG_DESCRIPTION="Mail::SpamAssassin - spam filter modules for Perl"
 
 source ../../scripts/build-template.sh

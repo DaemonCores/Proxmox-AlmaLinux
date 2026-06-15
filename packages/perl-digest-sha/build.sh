@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-digest-sha"
-REPO_URL="git://git.proxmox.com/git/perl-digest-sha.git"
+REPO_URL="https://git.proxmox.com/git/perl-digest-sha.git"
 PKG_DESCRIPTION="Digest::SHA - SHA-1/256/512 digest for Perl"
 
 source ../../scripts/build-template.sh

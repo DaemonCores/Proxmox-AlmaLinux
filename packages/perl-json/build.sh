@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-json"
-REPO_URL="git://git.proxmox.com/git/perl-json.git"
+REPO_URL="https://git.proxmox.com/git/perl-json.git"
 PKG_DESCRIPTION="JSON - JSON encoding and decoding for Perl"
 
 source ../../scripts/build-template.sh

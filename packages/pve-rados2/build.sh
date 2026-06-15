@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-rados2"
-REPO_URL="git://git.proxmox.com/git/librados2-perl.git"
+REPO_URL="https://git.proxmox.com/git/librados2-perl.git"
 BUILD_TYPE="perl-git"
 PKG_DESCRIPTION="PVE RADOS2 — Perl bindings for Ceph RADOS (librados)"
 PKG_DEPENDS=$'ceph-devel

@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-www-perl"
-REPO_URL="git://git.proxmox.com/git/perl-www-perl.git"
+REPO_URL="https://git.proxmox.com/git/perl-www-perl.git"
 PKG_DESCRIPTION="LWP - WWW library for Perl (libwww-perl)"
 
 source ../../scripts/build-template.sh

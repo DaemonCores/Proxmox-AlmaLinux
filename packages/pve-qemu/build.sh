@@ -4,7 +4,7 @@
 # Type: rust-qemu
 
 PKG_NAME="pve-qemu"
-REPO_URL="git://git.proxmox.com/git/pve-qemu.git"
+REPO_URL="https://git.proxmox.com/git/pve-qemu.git"
 BUILD_TYPE="rust-qemu"
 PKG_DESCRIPTION="PVE QEMU — Proxmox-patched QEMU hypervisor (meson + ninja build)"
 PKG_DEPENDS=$'ceph-libs

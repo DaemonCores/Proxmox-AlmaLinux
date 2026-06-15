@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-net-dns"
-REPO_URL="git://git.proxmox.com/git/perl-net-dns.git"
+REPO_URL="https://git.proxmox.com/git/perl-net-dns.git"
 PKG_DESCRIPTION="Net::DNS - DNS resolver for Perl"
 
 source ../../scripts/build-template.sh

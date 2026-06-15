@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-uri"
-REPO_URL="git://git.proxmox.com/git/perl-uri.git"
+REPO_URL="https://git.proxmox.com/git/perl-uri.git"
 PKG_DESCRIPTION="URI - Uniform Resource Identifiers for Perl"
 
 source ../../scripts/build-template.sh

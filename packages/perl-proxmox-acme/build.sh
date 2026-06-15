@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-proxmox-acme"
-REPO_URL="git://git.proxmox.com/git/perl-proxmox-acme.git"
+REPO_URL="https://git.proxmox.com/git/perl-proxmox-acme.git"
 PKG_DESCRIPTION="Proxmox ACME client Perl module"
 
 source ../../scripts/build-template.sh

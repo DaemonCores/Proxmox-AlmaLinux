@@ -4,7 +4,7 @@
 # Type: node
 
 PKG_NAME="pve-novnc"
-REPO_URL="git://git.proxmox.com/git/novnc-pve.git"
+REPO_URL="https://git.proxmox.com/git/novnc-pve.git"
 BUILD_TYPE="node"
 CLONE_RECURSIVE="1"
 PKG_DESCRIPTION="PVE noVNC — Web-based VNC client for Proxmox VE"

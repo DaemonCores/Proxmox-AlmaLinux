@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-file-readbackwards"
-REPO_URL="git://git.proxmox.com/git/perl-file-readbackwards.git"
+REPO_URL="https://git.proxmox.com/git/perl-file-readbackwards.git"
 PKG_DESCRIPTION="File::ReadBackwards - read a file backwards by lines"
 
 source ../../scripts/build-template.sh

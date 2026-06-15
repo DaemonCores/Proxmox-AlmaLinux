@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-net-ip"
-REPO_URL="git://git.proxmox.com/git/perl-net-ip.git"
+REPO_URL="https://git.proxmox.com/git/perl-net-ip.git"
 PKG_DESCRIPTION="Net::IP - IPv4/IPv6 address manipulation for Perl"
 
 source ../../scripts/build-template.sh

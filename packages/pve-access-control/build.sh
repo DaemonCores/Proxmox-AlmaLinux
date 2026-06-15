@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-access-control"
-REPO_URL="git://git.proxmox.com/git/pve-access-control.git"
+REPO_URL="https://git.proxmox.com/git/pve-access-control.git"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE access control framework — user, role, and permission management"

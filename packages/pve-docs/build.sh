@@ -4,7 +4,7 @@
 # Type: docs
 
 PKG_NAME="pve-docs"
-REPO_URL="git://git.proxmox.com/git/pve-docs.git"
+REPO_URL="https://git.proxmox.com/git/pve-docs.git"
 BUILD_TYPE="docs"
 PKG_DESCRIPTION="PVE documentation — asciidoc-generated HTML/PDF docs"
 PKG_DEPENDS=$'asciidoc

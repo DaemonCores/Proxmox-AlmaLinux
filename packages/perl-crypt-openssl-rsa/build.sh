@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-crypt-openssl-rsa"
-REPO_URL="git://git.proxmox.com/git/perl-crypt-openssl-rsa.git"
+REPO_URL="https://git.proxmox.com/git/perl-crypt-openssl-rsa.git"
 PKG_DESCRIPTION="Crypt::OpenSSL::RSA - RSA encoding/decoding for Perl"
 
 source ../../scripts/build-template.sh

@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-linux-inotify2"
-REPO_URL="git://git.proxmox.com/git/perl-linux-inotify2.git"
+REPO_URL="https://git.proxmox.com/git/perl-linux-inotify2.git"
 PKG_DESCRIPTION="Linux::Inotify2 - Linux inotify interface for Perl"
 
 source ../../scripts/build-template.sh

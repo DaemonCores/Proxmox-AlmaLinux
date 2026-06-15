@@ -4,7 +4,7 @@
 # Type: firmware
 
 PKG_NAME="pve-edk2-firmware"
-REPO_URL="git://git.proxmox.com/git/pve-edk2-firmware.git"
+REPO_URL="https://git.proxmox.com/git/pve-edk2-firmware.git"
 BUILD_TYPE="firmware"
 PKG_DESCRIPTION="PVE EDK2 UEFI firmware modules for virtual machines"
 PKG_DEPENDS=$'acpica-tools
