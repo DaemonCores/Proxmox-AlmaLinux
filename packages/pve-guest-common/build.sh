@@ -23,6 +23,7 @@ install_override() {
     find "$STAGE/root" -name 'perllocal.pod' -delete 2>/dev/null || true
 }
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

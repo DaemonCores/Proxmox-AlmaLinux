@@ -18,7 +18,8 @@ PKG_NAME="perl-json"
 REPO_URL="https://git.proxmox.com/git/perl-json.git"
 PKG_DESCRIPTION="JSON - JSON encoding and decoding for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

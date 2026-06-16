@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/N/NI/NIKIP/Authen-PAM-0.16.tar.gz"
 CPAN_VERSION="0.16"
 PKG_DESCRIPTION="PAM authentication interface for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\npam'

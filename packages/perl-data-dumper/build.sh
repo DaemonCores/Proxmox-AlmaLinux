@@ -18,7 +18,8 @@ PKG_NAME="perl-data-dumper"
 REPO_URL="https://git.proxmox.com/git/perl-data-dumper.git"
 PKG_DESCRIPTION="Data::Dumper - stringified Perl data structures"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

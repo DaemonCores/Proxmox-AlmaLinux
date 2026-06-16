@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/T/TO/TODDR/FindBin-1.54.tar.gz"
 CPAN_VERSION="1.54"
 PKG_DESCRIPTION="FindBin - locate directory of running Perl script"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/G/GO/GOZER/POSIX-strptime-0.13.tar.gz"
 CPAN_VERSION="0.13"
 PKG_DESCRIPTION="POSIX::strptime - strptime for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

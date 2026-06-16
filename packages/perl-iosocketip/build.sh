@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/P/PE/PEVANS/IO-Socket-IP-0.43.tar.gz"
 CPAN_VERSION="0.43"
 PKG_DESCRIPTION="IO::Socket::IP - IPv4/IPv6 socket support for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

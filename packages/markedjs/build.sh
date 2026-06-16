@@ -38,6 +38,7 @@ install_override() {
 # Override: version from download URL
 detect_version() { echo "${MARKED_VERSION}+${SHORT:-git}"; }
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

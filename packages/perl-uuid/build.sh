@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/J/JR/JRM/UUID-0.37.tar.gz"
 CPAN_VERSION="0.37"
 PKG_DESCRIPTION="UUID - UUID generation for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

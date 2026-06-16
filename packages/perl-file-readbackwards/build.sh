@@ -18,7 +18,8 @@ PKG_NAME="perl-file-readbackwards"
 REPO_URL="https://git.proxmox.com/git/perl-file-readbackwards.git"
 PKG_DESCRIPTION="File::ReadBackwards - read a file backwards by lines"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

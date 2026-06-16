@@ -2,7 +2,8 @@
 # build-template.sh — Master template for Proxmox AlmaLinux package builds
 #
 # Sourced by each package's build.sh via:
-#   source ../../scripts/build-template.sh
+#   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#   source "$SCRIPT_DIR/../../scripts/build-template.sh"
 #
 # Provides common functions for the 6-step build pipeline:
 #   1. setup_env     — Export WORKDIR, PKG_NAME, VERSION, RELEASE; detect build type

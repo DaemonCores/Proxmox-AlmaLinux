@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/R/RE/REHSACK/MIME-Base32-1.303.tar.gz"
 CPAN_VERSION="1.303"
 PKG_DESCRIPTION="MIME::Base32 - Base32 encoding/decoding for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

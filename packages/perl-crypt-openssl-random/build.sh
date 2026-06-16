@@ -18,7 +18,8 @@ PKG_NAME="perl-crypt-openssl-random"
 REPO_URL="https://git.proxmox.com/git/perl-crypt-openssl-random.git"
 PKG_DESCRIPTION="Crypt::OpenSSL::Random - OpenSSL random number generator for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\nopenssl-libs'

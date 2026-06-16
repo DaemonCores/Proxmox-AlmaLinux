@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/C/CA/CAPOEIRAB/MIME-Base64-3.16.tar.gz
 CPAN_VERSION="3.16"
 PKG_DESCRIPTION="MIME::Base64 - Base64 encoding/decoding for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

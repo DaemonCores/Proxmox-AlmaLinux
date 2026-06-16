@@ -18,7 +18,8 @@ PKG_NAME="perl-mail-spamassassin"
 REPO_URL="https://git.proxmox.com/git/proxmox-spamassassin.git"
 PKG_DESCRIPTION="Mail::SpamAssassin - spam filter modules for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\nperl-net-dns\nperl-io-socket-ssl\nperl-mail-spf\nperl-netaddr-ip'

@@ -18,7 +18,8 @@ PKG_NAME="perl-uri"
 REPO_URL="https://git.proxmox.com/git/perl-uri.git"
 PKG_DESCRIPTION="URI - Uniform Resource Identifiers for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

@@ -18,7 +18,8 @@ PKG_NAME="perl-linux-inotify2"
 REPO_URL="https://git.proxmox.com/git/perl-linux-inotify2.git"
 PKG_DESCRIPTION="Linux::Inotify2 - Linux inotify interface for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

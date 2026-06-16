@@ -18,7 +18,8 @@ PKG_NAME="perl-net-dns"
 REPO_URL="https://git.proxmox.com/git/perl-net-dns.git"
 PKG_DESCRIPTION="Net::DNS - DNS resolver for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\nperl-digest-hmac\nperl-net-ip\nperl-io-socket-ip'

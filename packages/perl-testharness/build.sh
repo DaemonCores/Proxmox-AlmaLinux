@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/L/LE/LEONT/Test-Harness-3.52.tar.gz"
 CPAN_VERSION="3.52"
 PKG_DESCRIPTION="Test::Harness - Perl test framework"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

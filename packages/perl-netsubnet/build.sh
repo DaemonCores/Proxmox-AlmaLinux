@@ -19,7 +19,8 @@ REPO_URL="https://www.cpan.org/authors/id/J/JU/JUERD/Net-Subnet-1.03.tar.gz"
 CPAN_VERSION="1.03"
 PKG_DESCRIPTION="Net::Subnet - IP subnet matching for Perl"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

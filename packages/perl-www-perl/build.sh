@@ -18,7 +18,8 @@ PKG_NAME="perl-www-perl"
 REPO_URL="https://git.proxmox.com/git/perl-www-perl.git"
 PKG_DESCRIPTION="LWP - WWW library for Perl (libwww-perl)"
 
-source ../../scripts/build-template.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\nperl-uri\nperl-net-http\nperl-www-robotrules\nperl-io-socket-ip'
