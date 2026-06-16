@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-firewall"
-REPO_URL="https://git.proxmox.com/git/pve-firewall.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE firewall — iptables/nftables rules, ipsets, and security groups"

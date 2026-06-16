@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-cluster"
-REPO_URL="https://git.proxmox.com/git/pve-cluster.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE cluster filesystem (pmxcfs) and cluster management tools"

@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-socket"
-REPO_URL="https://www.cpan.org/authors/id/P/PE/PEVANS/Socket-2.040.tar.gz"
-CPAN_VERSION="2.040"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="Socket - networking constants and structures for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-apiclient"
-REPO_URL="https://git.proxmox.com/git/pve-apiclient.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="PVE API client — Perl library for Proxmox VE REST API"

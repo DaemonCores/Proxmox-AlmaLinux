@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-authen-pam"
-REPO_URL="https://www.cpan.org/authors/id/N/NI/NIKIP/Authen-PAM-0.16.tar.gz"
-CPAN_VERSION="0.16"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="PAM authentication interface for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

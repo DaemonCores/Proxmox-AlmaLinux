@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-iosocketip"
-REPO_URL="https://www.cpan.org/authors/id/P/PE/PEVANS/IO-Socket-IP-0.43.tar.gz"
-CPAN_VERSION="0.43"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="IO::Socket::IP - IPv4/IPv6 socket support for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

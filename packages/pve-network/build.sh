@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-network"
-REPO_URL="https://git.proxmox.com/git/pve-network.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="perl-git"
 BUILD_SUBDIR="src/PVE"
 PKG_DESCRIPTION="PVE network management — SDN, bridges, VLANs, zones"

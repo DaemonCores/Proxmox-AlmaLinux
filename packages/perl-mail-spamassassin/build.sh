@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-mail-spamassassin"
-REPO_URL="https://git.proxmox.com/git/proxmox-spamassassin.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="Mail::SpamAssassin - spam filter modules for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

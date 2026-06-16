@@ -4,7 +4,7 @@
 # Type: rust-perl
 
 PKG_NAME="proxmox-perl-rs"
-REPO_URL="https://git.proxmox.com/git/proxmox-perl-rs.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="rust-perl"
 BUILD_SUBDIR="pve-rs"
 PKG_DESCRIPTION="Proxmox Rust bindings for Perl — perlmod-generated XS modules"

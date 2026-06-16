@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-termreadline"
-REPO_URL="https://www.cpan.org/authors/id/F/FL/FLORA/Term-ReadLine-1.14.tar.gz"
-CPAN_VERSION="1.14"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="Term::ReadLine - terminal line editing for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

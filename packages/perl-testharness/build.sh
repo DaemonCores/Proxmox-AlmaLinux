@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-testharness"
-REPO_URL="https://www.cpan.org/authors/id/L/LE/LEONT/Test-Harness-3.52.tar.gz"
-CPAN_VERSION="3.52"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="Test::Harness - Perl test framework"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

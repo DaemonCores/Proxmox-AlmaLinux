@@ -4,7 +4,7 @@
 # Type: node
 
 PKG_NAME="extjs"
-REPO_URL="https://git.proxmox.com/git/extjs.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="node"
 PKG_DESCRIPTION="ExtJS JavaScript framework for PVE web UI"
 

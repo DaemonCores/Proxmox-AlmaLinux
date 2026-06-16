@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-http-daemon"
-REPO_URL="https://git.proxmox.com/git/perl-http-daemon.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="HTTP::Daemon - simple HTTP server for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

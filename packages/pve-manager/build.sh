@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-manager"
-REPO_URL="https://git.proxmox.com/git/pve-manager.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="perl-git"
 PKG_DESCRIPTION="PVE manager — web UI, REST API, and management daemons"
 PKG_DEPENDS=$'ceph-common

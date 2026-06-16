@@ -4,7 +4,7 @@
 # Type: perl-git
 
 PKG_NAME="pve-common"
-REPO_URL="https://git.proxmox.com/git/pve-common.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="perl-git"
 PKG_DESCRIPTION="PVE common Perl library — core utilities, INotify, ProcFSTools, and more"
 PKG_DEPENDS=$'perl

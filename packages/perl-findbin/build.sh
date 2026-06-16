@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-findbin"
-REPO_URL="https://www.cpan.org/authors/id/T/TO/TODDR/FindBin-1.54.tar.gz"
-CPAN_VERSION="1.54"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="FindBin - locate directory of running Perl script"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

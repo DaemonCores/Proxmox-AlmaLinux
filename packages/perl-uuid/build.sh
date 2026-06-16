@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-uuid"
-REPO_URL="https://www.cpan.org/authors/id/J/JR/JRM/UUID-0.37.tar.gz"
-CPAN_VERSION="0.37"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="UUID - UUID generation for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

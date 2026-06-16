@@ -1,9 +1,9 @@
 #!/bin/bash
-# build.sh — perl-xml-parser (Layer 0: Perl git module, no PVE deps)
+# build.sh — perl-xml-parser (Layer 0: CPAN Perl module, no PVE deps)
 #
 # Build pipeline:
 #   1. setup_env      — Export WORKDIR, PKG_NAME, VERSION, RELEASE; detect build type
-#   2. fetch_source   — Git clone from git.proxmox.com
+#   2. fetch_source   — Download CPAN tarball and extract
 #   3. build_perl     — Makefile.PL / Build.PL build
 #   4. install_perl   — Install to staging root
 #   5. package_rpm    — Create .pkg.tar intermediate
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-xml-parser"
-REPO_URL="https://git.proxmox.com/git/perl-xml-parser.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="XML::Parser - XML parsing for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

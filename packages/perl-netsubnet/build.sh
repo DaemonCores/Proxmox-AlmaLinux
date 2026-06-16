@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-netsubnet"
-REPO_URL="https://www.cpan.org/authors/id/J/JU/JUERD/Net-Subnet-1.03.tar.gz"
-CPAN_VERSION="1.03"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="Net::Subnet - IP subnet matching for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

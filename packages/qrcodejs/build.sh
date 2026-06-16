@@ -4,7 +4,7 @@
 # Type: node
 
 PKG_NAME="qrcodejs"
-REPO_URL="https://git.proxmox.com/git/libjs-qrcodejs.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="node"
 BUILD_SUBDIR="src"
 PKG_DESCRIPTION="QRCode.js — Cross-browser QR code generator for JavaScript"

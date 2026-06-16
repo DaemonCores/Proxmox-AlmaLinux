@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-mimebase64"
-REPO_URL="https://www.cpan.org/authors/id/C/CA/CAPOEIRAB/MIME-Base64-3.16.tar.gz"
-CPAN_VERSION="3.16"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="MIME::Base64 - Base64 encoding/decoding for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

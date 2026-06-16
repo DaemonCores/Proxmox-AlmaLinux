@@ -15,8 +15,7 @@
 set -euo pipefail
 
 PKG_NAME="perl-posixstrptime"
-REPO_URL="https://www.cpan.org/authors/id/G/GO/GOZER/POSIX-strptime-0.13.tar.gz"
-CPAN_VERSION="0.13"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 PKG_DESCRIPTION="POSIX::strptime - strptime for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

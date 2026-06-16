@@ -4,7 +4,7 @@
 # Type: i18n
 
 PKG_NAME="proxmox-i18n"
-REPO_URL="https://git.proxmox.com/git/proxmox-i18n.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="i18n"
 PKG_DESCRIPTION="Proxmox internationalization — gettext translation files"
 PKG_DEPENDS=$'gettext

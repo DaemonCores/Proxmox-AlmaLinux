@@ -4,7 +4,7 @@
 # Type: c-patched
 
 PKG_NAME="vncterm"
-REPO_URL="https://git.proxmox.com/git/vncterm.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="c-patched"
 PKG_DESCRIPTION="vncterm — VNC terminal emulator for Proxmox VE console access"
 PKG_DEPENDS=$'gnutls

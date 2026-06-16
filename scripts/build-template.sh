@@ -46,6 +46,74 @@
 set -euo pipefail
 
 # ============================================================================
+# 0. get_pkg_meta — Read package metadata from packages.yml (single source of truth)
+# ============================================================================
+# Uses python3+PyYAML (or yq as fallback) to extract fields from packages.yml.
+# The YAML file is THE source of truth — build.sh files should NOT hardcode
+# URLs that are already in packages.yml.
+#
+# Usage in build.sh:
+#   REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
+#   CPAN_VERSION="$(get_pkg_meta "$PKG_NAME" repo | sed 's/.*-\([0-9.]*\)\.tar\.gz/\1/')"
+#   BUILD_TYPE="$(get_pkg_meta "$PKG_NAME" build_type)"
+#
+# Available fields: id, repo, version_source, build_time, artifact_type, layer,
+#   depends_on, tracker_file, branch
+get_pkg_meta() {
+    local pkg_id="$1"
+    local field="$2"
+    local yaml_path="${BUILD_YAML_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]:-${0}}")" && pwd)/../packages.yml}"
+
+    # Try yq first (fastest, no python dependency)
+    if command -v yq &>/dev/null; then
+        yq -r ".packages[] | select(.id == \"$pkg_id\") | .$field" "$yaml_path" 2>/dev/null
+        return
+    fi
+
+    # Fallback to python3+PyYAML
+    if command -v python3 &>/dev/null; then
+        python3 -c "
+import yaml, sys
+with open('$yaml_path') as f:
+    data = yaml.safe_load(f)
+for pkg in data.get('packages', []):
+    if pkg.get('id') == '$pkg_id':
+        val = pkg.get('$field', '')
+        if isinstance(val, list):
+            print('\\n'.join(str(v) for v in val))
+        else:
+            print(val)
+        sys.exit(0)
+sys.exit(1)
+" 2>/dev/null
+        return
+    fi
+
+    echo "ERROR: get_pkg_meta requires yq or python3 with PyYAML" >&2
+    return 1
+}
+
+# Derive CPAN_VERSION from the repo URL in packages.yml.
+# Extracts the version number from CPAN tarball URLs like:
+#   https://cpan.metacpan.org/authors/id/.../Module-1.23.tar.gz → "1.23"
+#   https://www.cpan.org/authors/id/.../Module-1.23.tar.gz     → "1.23"
+# For non-CPAN URLs, returns empty string.
+get_cpan_version() {
+    local pkg_id="$1"
+    local repo_url
+    repo_url="$(get_pkg_meta "$pkg_id" repo)"
+    if [[ "$repo_url" =~ cpan\.org ]]; then
+        local tarball
+        tarball="$(basename "$repo_url")"
+        # Module-Version.tar.gz → extract Version
+        local base="${tarball%.tar.gz}"
+        base="${base%.tgz}"
+        # Extract version: everything after the last hyphen that starts with a digit
+        echo "$base" | sed 's/.*-\([0-9][0-9.]*\)$/\1/'
+    fi
+}
+
+# ============================================================================
 # 1. setup_env — Export environment, create WORKDIR, detect build type
 # ============================================================================
 # Sets:
@@ -74,6 +142,16 @@ setup_env() {
     export WORKDIR="/tmp/src/${PKG_NAME}"
     export STAGE="/tmp/pkg/${PKG_NAME}"
     export RELEASE="${SHORT:-1}"
+
+    # Auto-derive CPAN_VERSION from packages.yml if not set explicitly
+    if [[ -z "${CPAN_VERSION:-}" && -n "${REPO_URL:-}" && "${REPO_URL}" =~ cpan\.org ]]; then
+        local _tarball
+        _tarball="$(basename "$REPO_URL")"
+        local _base="${_tarball%.tar.gz}"
+        _base="${_base%.tgz}"
+        CPAN_VERSION="$(echo "$_base" | sed 's/.*-\([0-9][0-9.]*\)$/\1/')"
+        echo "=== [$PKG_NAME] Auto-derived CPAN_VERSION=$CPAN_VERSION from URL ==="
+    fi
 
     # Set defaults for optional variables
     PKG_DESCRIPTION="${PKG_DESCRIPTION:-${PKG_NAME} — Proxmox VE package for AlmaLinux}"

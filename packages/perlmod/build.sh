@@ -4,7 +4,7 @@
 # Type: rust-submodules
 
 PKG_NAME="perlmod"
-REPO_URL="https://git.proxmox.com/git/perlmod.git"
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="rust-submodules"
 CLONE_RECURSIVE="1"
 PKG_DESCRIPTION="PerlMod — Alternative to Perl XS for Rust bindings"
