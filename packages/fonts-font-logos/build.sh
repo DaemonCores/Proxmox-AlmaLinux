@@ -4,6 +4,10 @@
 # Type: font
 
 PKG_NAME="fonts-font-logos"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="font"
 BUILD_SUBDIR="src"
@@ -22,7 +26,5 @@ install_override() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

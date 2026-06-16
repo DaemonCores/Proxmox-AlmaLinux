@@ -4,6 +4,10 @@
 # Type: rust-wasm
 
 PKG_NAME="pve-yew-mobile-gui"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="rust-wasm"
 CLONE_RECURSIVE="1"
@@ -49,7 +53,5 @@ install_override() {
     make install DESTDIR="$STAGE/root" PREFIX=/usr 2>/dev/null || true
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

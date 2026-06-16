@@ -4,6 +4,10 @@
 # Type: node
 
 PKG_NAME="pve-xtermjs"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="node"
 PKG_DESCRIPTION="PVE xterm.js — Web-based terminal emulator for Proxmox VE"
@@ -26,7 +30,5 @@ install_override() {
     [[ -f "index.html.tpl.in" ]] && mv index.html.tpl.in index.html.tpl 2>/dev/null || true
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

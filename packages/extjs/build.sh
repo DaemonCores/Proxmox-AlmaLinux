@@ -4,6 +4,10 @@
 # Type: node
 
 PKG_NAME="extjs"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="node"
 PKG_DESCRIPTION="ExtJS JavaScript framework for PVE web UI"
@@ -46,7 +50,5 @@ install_override() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

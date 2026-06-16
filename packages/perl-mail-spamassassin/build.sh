@@ -15,11 +15,13 @@
 set -euo pipefail
 
 PKG_NAME="perl-mail-spamassassin"
-REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
-PKG_DESCRIPTION="Mail::SpamAssassin - spam filter modules for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
+PKG_DESCRIPTION="Mail::SpamAssassin - spam filter modules for Perl"
+
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\nperl-net-dns\nperl-io-socket-ssl\nperl-mail-spf\nperl-netaddr-ip'

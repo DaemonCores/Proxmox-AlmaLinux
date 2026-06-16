@@ -4,6 +4,10 @@
 # Type: node
 
 PKG_NAME="pve-novnc"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="node"
 CLONE_RECURSIVE="1"
@@ -47,7 +51,5 @@ install_override() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

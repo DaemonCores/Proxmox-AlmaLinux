@@ -15,11 +15,13 @@
 set -euo pipefail
 
 PKG_NAME="perl-data-dumper"
-REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
-PKG_DESCRIPTION="Data::Dumper - stringified Perl data structures"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
+PKG_DESCRIPTION="Data::Dumper - stringified Perl data structures"
+
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

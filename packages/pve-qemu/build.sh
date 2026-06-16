@@ -4,6 +4,10 @@
 # Type: rust-qemu
 
 PKG_NAME="pve-qemu"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="rust-qemu"
 PKG_DESCRIPTION="PVE QEMU — Proxmox-patched QEMU hypervisor (meson + ninja build)"
@@ -77,7 +81,5 @@ install_override() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

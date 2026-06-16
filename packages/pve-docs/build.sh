@@ -4,6 +4,10 @@
 # Type: docs
 
 PKG_NAME="pve-docs"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="docs"
 PKG_DESCRIPTION="PVE documentation — asciidoc-generated HTML/PDF docs"
@@ -32,7 +36,5 @@ pre_build_hook() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

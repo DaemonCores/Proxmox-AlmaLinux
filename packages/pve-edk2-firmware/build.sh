@@ -4,6 +4,10 @@
 # Type: firmware
 
 PKG_NAME="pve-edk2-firmware"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="firmware"
 PKG_DESCRIPTION="PVE EDK2 UEFI firmware modules for virtual machines"
@@ -30,7 +34,5 @@ pre_build_hook() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

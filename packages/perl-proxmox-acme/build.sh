@@ -15,11 +15,13 @@
 set -euo pipefail
 
 PKG_NAME="perl-proxmox-acme"
-REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
-PKG_DESCRIPTION="Proxmox ACME client Perl module"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
+PKG_DESCRIPTION="Proxmox ACME client Perl module"
+
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\nopenssl-libs'

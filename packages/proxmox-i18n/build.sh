@@ -4,6 +4,10 @@
 # Type: i18n
 
 PKG_NAME="proxmox-i18n"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="i18n"
 PKG_DESCRIPTION="Proxmox internationalization — gettext translation files"
@@ -19,7 +23,5 @@ pre_build_hook() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

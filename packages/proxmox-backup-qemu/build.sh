@@ -4,6 +4,10 @@
 # Type: rust-submodules
 
 PKG_NAME="proxmox-backup-qemu"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="rust-submodules"
 CLONE_RECURSIVE="1"
@@ -27,7 +31,5 @@ install_override() {
     cp proxmox-backup-qemu.h "$STAGE/root/usr/lib/"
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

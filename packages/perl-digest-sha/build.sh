@@ -15,11 +15,13 @@
 set -euo pipefail
 
 PKG_NAME="perl-digest-sha"
-REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
-PKG_DESCRIPTION="Digest::SHA - SHA-1/256/512 digest for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
+PKG_DESCRIPTION="Digest::SHA - SHA-1/256/512 digest for Perl"
+
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'

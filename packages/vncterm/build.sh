@@ -4,6 +4,10 @@
 # Type: c-patched
 
 PKG_NAME="vncterm"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="c-patched"
 PKG_DESCRIPTION="vncterm — VNC terminal emulator for Proxmox VE console access"
@@ -57,7 +61,5 @@ install_override() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

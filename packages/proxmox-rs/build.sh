@@ -4,6 +4,10 @@
 # Type: rust-workspace
 
 PKG_NAME="proxmox-rs"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
 REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
 BUILD_TYPE="rust-workspace"
 PKG_DESCRIPTION="Proxmox Rust framework — core types, utilities, and API libraries"
@@ -25,7 +29,5 @@ install_override() {
     fi
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/build-template.sh"
 
 full_build

@@ -15,11 +15,13 @@
 set -euo pipefail
 
 PKG_NAME="perl-net-dns"
-REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
-PKG_DESCRIPTION="Net::DNS - DNS resolver for Perl"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
+PKG_DESCRIPTION="Net::DNS - DNS resolver for Perl"
+
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl\nperl-digest-hmac\nperl-net-ip\nperl-io-socket-ip'

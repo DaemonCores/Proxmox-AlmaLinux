@@ -15,11 +15,13 @@
 set -euo pipefail
 
 PKG_NAME="perl-testharness"
-REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
-PKG_DESCRIPTION="Test::Harness - Perl test framework"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../scripts/build-template.sh"
+
+REPO_URL="$(get_pkg_meta "$PKG_NAME" repo)"
+PKG_DESCRIPTION="Test::Harness - Perl test framework"
+
 
 # Dependencies — AlmaLinux RPM names
 PKG_DEPENDS=$'perl'
