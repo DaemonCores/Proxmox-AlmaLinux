@@ -196,7 +196,12 @@ jobs:
             dnf install -y createrepo_c gnupg2
 
             # Install yq (mikefarah)
-            YQ_ARCH=$(uname -m)
+            # yq uses amd64/arm64 naming, not x86_64/aarch64
+            case "$(uname -m)" in
+              x86_64)  YQ_ARCH=amd64 ;;
+              aarch64) YQ_ARCH=arm64 ;;
+              *)       YQ_ARCH=$(uname -m) ;;
+            esac
             wget -qO /usr/bin/yq "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${YQ_ARCH}"
             chmod +x /usr/bin/yq
 
