@@ -397,7 +397,7 @@ jobs:
 
       - name: Publish Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   # ===========================================================================
   # SAVE TRACKERS: Persist version tracker files so that compute-chains.sh
