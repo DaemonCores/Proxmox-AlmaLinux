@@ -312,7 +312,7 @@ jobs:
           ref: main
 
       - name: Download all package artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: 'pkg-*'
           path: artifacts/
@@ -385,7 +385,7 @@ jobs:
           ref: main
 
       - name: Download RPM repo artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: rpm-repo
           path: repo/

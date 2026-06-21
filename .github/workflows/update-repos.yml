@@ -62,7 +62,7 @@ jobs:
           ref: main
 
       - name: Download shared (build_target) artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ inputs.shared_artifact_pattern }}
           merge-multiple: true
@@ -70,14 +70,14 @@ jobs:
 
       - name: Download device-specific artifacts
         if: inputs.device_artifact_pattern != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ inputs.device_artifact_pattern }}
           merge-multiple: true
         continue-on-error: true
 
       - name: Download noarch single-build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: pkg-noarch-*
           path: noarch-stage/
@@ -265,12 +265,12 @@ jobs:
           sparse-checkout: scripts
 
       - name: Download intermediates
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: intermediates-${{ inputs.device }}
 
       - name: Download dep cache
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dep-cache-${{ inputs.device }}
           path: dep-cache/
@@ -522,13 +522,13 @@ jobs:
           ref: main
 
       - name: Download intermediates (for pages template)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: intermediates-${{ inputs.device }}
           path: intermediates-data/
 
       - name: Download all repo artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: repo-${{ inputs.device }}-*
           path: repo-artifacts/
