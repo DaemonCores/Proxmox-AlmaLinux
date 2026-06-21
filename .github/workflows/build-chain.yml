@@ -31,7 +31,7 @@ jobs:
           ref: main
 
       - name: Restore cached image
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/pve-build.tar
           key: ${{ inputs.cache_key }}-${{ matrix.entry.target_arch }}
@@ -41,7 +41,7 @@ jobs:
 
       - name: Restore ccache
         id: cache_ccache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: /tmp/ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}
           key: ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}-${{ matrix.entry.version_short }}
@@ -51,7 +51,7 @@ jobs:
       - name: Restore extra cache
         id: cache_extra
         if: matrix.entry.extra_cache_key != ''
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ matrix.entry.extra_cache_path }}
           key: ${{ matrix.entry.extra_cache_key }}
@@ -115,14 +115,14 @@ jobs:
 
       - name: Save ccache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: /tmp/ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}
           key: ccache-${{ matrix.entry.package_id }}-${{ matrix.entry.target_id }}-${{ matrix.entry.version_short }}
 
       - name: Save extra cache
         if: always() && matrix.entry.extra_cache_save == 'true' && matrix.entry.extra_cache_key != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ matrix.entry.extra_cache_path }}
           key: ${{ matrix.entry.extra_cache_key }}
@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload success marker
         if: steps.build.outputs.completed == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: /tmp/marker
           # target_id in the key so each build_target has its own marker
