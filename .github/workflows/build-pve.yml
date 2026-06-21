@@ -141,7 +141,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Restore x86_64 cached image
         id: cache-x86_64
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: /tmp/pve-build.tar
           key: ${{ env.CACHE_KEY }}-x86_64
@@ -214,7 +214,7 @@ jobs:
 
       - name: Save x86_64 cached image
         if: steps.cache-x86_64.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: /tmp/pve-build.tar
           key: ${{ env.CACHE_KEY }}-x86_64
@@ -319,7 +319,7 @@ jobs:
           merge-multiple: true
 
       - name: Restore cached base image
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: /tmp/pve-build.tar
           key: ${{ env.CACHE_KEY }}-x86_64
